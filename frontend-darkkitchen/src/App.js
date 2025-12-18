@@ -9,6 +9,16 @@ import Menu from './pages/Menu';
 import Delivery from './pages/Delivery';
 import Auth from './pages/Auth';
 import PublicLayout from './pages/PublicLayout';
+import AdminLayout from "./admin/AdminLayout";
+import AdminDashboard from "./admin/AdminDashboard";
+
+import AdminOrders from "./admin/AdminOrders";
+import AdminMenu from "./admin/AdminMenu";
+import AdminCategories from "./admin/AdminCategories";
+import AdminUsers from "./admin/AdminUsers";
+import AdminKitchen from "./admin/AdminKitchen";
+import AdminDelivery from "./admin/AdminDelivery";
+
 
 const theme = createTheme({
   palette: {
@@ -49,6 +59,16 @@ function App() {
             <Route path="menu" element={<Menu />} />
             <Route path="delivery" element={<Delivery />} />
             <Route path="auth" element={<Auth />} />
+          </Route>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="orders" element={<AdminOrders />} />
+            <Route path="menu" element={<AdminMenu />} />
+            <Route path="categories" element={<AdminCategories />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="kitchen" element={<AdminKitchen />} />
+            <Route path="delivery" element={<AdminDelivery />} />
+
           </Route>
         </Routes>
       </Router>
