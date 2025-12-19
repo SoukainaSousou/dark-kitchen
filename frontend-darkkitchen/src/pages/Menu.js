@@ -1,5 +1,6 @@
 // src/pages/Menu.js
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Container,
   Grid,
@@ -21,7 +22,9 @@ import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 
 const Menu = () => {
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchParams] = useSearchParams();
+  const categoryFromUrl = searchParams.get('category') || 'all';
+const [selectedCategory, setSelectedCategory] = useState(categoryFromUrl);
   const [quantities, setQuantities] = useState({});
   const [dishes, setDishes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +55,10 @@ const Menu = () => {
 
     fetchDishes();
   }, []);
+useEffect(() => {
+  const category = searchParams.get('category') || 'all';
+  setSelectedCategory(category);
+}, [searchParams]);
 
   // Extraire les catégories uniques depuis les données
   const categories = [
