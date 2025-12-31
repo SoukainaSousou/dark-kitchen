@@ -16,81 +16,144 @@ import {
   Rating,
   IconButton,
   CircularProgress,
-  Alert
+  Alert,
+  TextField,
+  InputAdornment
 } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
+import ScheduleIcon from '@mui/icons-material/Schedule';
+import ImageSearchIcon from '@mui/icons-material/ImageSearch';
 
 const Menu = () => {
   const [searchParams] = useSearchParams();
   const categoryFromUrl = searchParams.get('category') || 'all';
-const [selectedCategory, setSelectedCategory] = useState(categoryFromUrl);
+  const [selectedCategory, setSelectedCategory] = useState(categoryFromUrl);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [imageFile, setImageFile] = useState(null);
   const [quantities, setQuantities] = useState({});
   const [dishes, setDishes] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Récupérer tous les plats depuis l'API
+  // Récupérer tous les plats et les catégories
   useEffect(() => {
-    const fetchDishes = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await fetch('http://localhost:8080/api/dishes');
-        
-        if (!response.ok) {
-          throw new Error(`Erreur HTTP: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log('Données reçues:', data);
-        setDishes(data);
+
+        const dishesResponse = await fetch('http://localhost:8080/api/dishes');
+        if (!dishesResponse.ok) throw new Error('Erreur HTTP pour les plats');
+        const dishesData = await dishesResponse.json();
+        setDishes(dishesData);
+
+        const categoriesResponse = await fetch('http://localhost:8080/api/categories');
+        if (!categoriesResponse.ok) throw new Error('Erreur HTTP pour les catégories');
+        const categoriesData = await categoriesResponse.json();
+        setCategories(categoriesData);
+
         setError(null);
       } catch (err) {
-        console.error('Erreur lors du chargement des plats:', err);
+        console.error(err);
         setError('Impossible de charger le menu. Veuillez réessayer.');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchDishes();
+    fetchData();
   }, []);
-useEffect(() => {
-  const category = searchParams.get('category') || 'all';
-  setSelectedCategory(category);
-}, [searchParams]);
 
-  // Extraire les catégories uniques depuis les données
-  const categories = [
-    { value: 'all', label: 'Tout le Menu' },
-    ...Array.from(new Set(dishes.map(dish => dish.category)))
-      .filter(Boolean)
-      .map(category => ({
-        value: category.toLowerCase(),
-        label: category.charAt(0).toUpperCase() + category.slice(1)
-      }))
+  useEffect(() => {
+    const category = searchParams.get('category') || 'all';
+    setSelectedCategory(category);
+  }, [searchParams]);
+
+  // Préparer les tabs
+  const categoryTabs = [
+    { id: 'all', name: 'Tout le Menu', label: 'Tout le Menu' },
+    ...categories.map(cat => ({ id: cat.id.toString(), name: cat.name, label: cat.name }))
   ];
 
-  // Filtrer les plats par catégorie
-  const filteredItems = selectedCategory === 'all' 
-    ? dishes 
-    : dishes.filter(item => 
-        item.category && item.category.toLowerCase() === selectedCategory
-      );
+  // Filtrer les plats
+  const filteredItems = dishes.filter(item => {
+    const categoryMatch = selectedCategory === 'all' || (item.category && item.category.id.toString() === selectedCategory);
+    const searchMatch =
+      !searchTerm ||
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.category && item.category.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    return categoryMatch && searchMatch;
+  });
 
   const handleQuantityChange = (itemId, change) => {
-    setQuantities(prev => ({
-      ...prev,
-      [itemId]: Math.max(0, (prev[itemId] || 0) + change)
-    }));
+    setQuantities(prev => ({ ...prev, [itemId]: Math.max(0, (prev[itemId] || 0) + change) }));
   };
 
   const handleAddToCart = (dish) => {
     const quantity = quantities[dish.id] || 1;
-    console.log(`Ajout au panier: ${dish.name} x${quantity}`);
     alert(`${quantity} ${dish.name}(s) ajouté(s) au panier!`);
     setQuantities(prev => ({ ...prev, [dish.id]: 0 }));
   };
+
+  // Gestion de l'upload image
+  const handleImageUpload = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setImageFile(e.target.files[0]);
+      handleImageSearch(e.target.files[0]);
+    }
+  };
+
+const handleImageSearch = async (file) => {
+  try {
+    setLoading(true);
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const response = await fetch(
+      'http://localhost:8080/api/dishes/search-by-image',
+      {
+        method: 'POST',
+        body: formData
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Erreur lors de la recherche par image');
+    }
+
+    const data = await response.json();
+
+    // ✅ results contient déjà des plats complets
+    const foundDishes = Array.isArray(data.results) ? data.results : [];
+
+    if (foundDishes.length === 0) {
+      alert(`❌ Aucun plat trouvé pour la catégorie "${data.detected_category}"`);
+      return;
+    }
+
+    // Mise à jour du menu
+    setDishes(foundDishes);
+    setSelectedCategory('all');
+    setSearchTerm('');
+
+
+    alert(
+      `✅ ${foundDishes.length} plat(s) trouvé(s) pour "${data.detected_category}"`
+    );
+
+  } catch (err) {
+    console.error(err);
+    alert('❌ Erreur lors de la recherche par image');
+  } finally {
+    setLoading(false);
+  }
+};
+
+
 
   if (loading) {
     return (
@@ -104,275 +167,129 @@ useEffect(() => {
   if (error) {
     return (
       <Container sx={{ py: 4 }}>
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-        <Button variant="contained" onClick={() => window.location.reload()}>
-          Réessayer
-        </Button>
-      </Container>
-    );
-  }
-
-  if (dishes.length === 0) {
-    return (
-      <Container sx={{ py: 4, textAlign: 'center' }}>
-        <Typography variant="h5" color="text.secondary">
-          Aucun plat disponible pour le moment.
-        </Typography>
+        <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+        <Button variant="contained" onClick={() => window.location.reload()}>Réessayer</Button>
       </Container>
     );
   }
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom fontWeight="bold">
-        Notre Menu Complet
-      </Typography>
-      <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 3 }}>
-        {dishes.length} plats disponibles
-      </Typography>
+      {/* Header */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" component="h1" gutterBottom fontWeight="bold" color="primary.main">
+          Notre Menu Complet
+        </Typography>
+        <Typography variant="subtitle1" color="text.secondary">
+          {dishes.length} plats disponibles • {categories.length} catégories
+        </Typography>
+      </Box>
 
-      {/* Filtres par catégorie */}
+      {/* Recherche texte + image */}
+      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+        <TextField
+          fullWidth
+          variant="outlined"
+          placeholder="Rechercher un plat, une catégorie..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+          }}
+          sx={{ flex: 1 }}
+        />
+        <Button
+          variant="outlined"
+          component="label"
+          startIcon={<ImageSearchIcon />}
+          sx={{ height: 56 }}
+        >
+          Rechercher par image
+          <input hidden type="file" accept="image/*" onChange={handleImageUpload} />
+        </Button>
+      </Box>
+
+      {/* Tabs catégories */}
       <Tabs
         value={selectedCategory}
         onChange={(e, newValue) => setSelectedCategory(newValue)}
-        sx={{ mb: 4 }}
+        sx={{ mb: 4, borderBottom: 1, borderColor: 'divider' }}
         variant="scrollable"
         scrollButtons="auto"
+        textColor="primary"
+        indicatorColor="primary"
       >
-        {categories.map(category => (
-          <Tab 
-            key={category.value} 
-            value={category.value} 
-            label={category.label} 
-          />
+        {categoryTabs.map(category => (
+          <Tab key={category.id} value={category.id} label={category.label} sx={{ fontWeight: selectedCategory === category.id ? 'bold' : 'normal', fontSize: '0.95rem' }} />
         ))}
       </Tabs>
 
-      {/* Liste des plats en GRID pour avoir des cadres de même taille */}
-      <Grid container spacing={3}>
-        {filteredItems.map((item) => (
-          <Grid item xs={12} sm={6} md={4} key={item.id}>
-            <Card sx={{ 
-              height: '100%', 
-              display: 'flex', 
-              flexDirection: 'column',
-              // Taille fixe pour toutes les cartes
-              minHeight: 400,
-              borderRadius: 2,
-              boxShadow: 2,
-              transition: 'transform 0.2s, box-shadow 0.2s',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                boxShadow: 4
-              }
-            }}>
-              {/* Image avec hauteur fixe */}
-              <CardMedia
-                component="img"
-                sx={{ 
-                  width: '100%',
-                  height: 180,
-                  objectFit: 'cover'
-                }}
-                image={item.image || '/images/default-dish.jpg'}
-                alt={item.name}
-              />
-              
-              <CardContent sx={{ 
-                flexGrow: 1, 
-                display: 'flex', 
-                flexDirection: 'column',
-                p: 2.5
-              }}>
-                {/* En-tête avec nom et prix */}
-                <Box sx={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                  mb: 1.5
-                }}>
-                  <Typography 
-                    variant="h6" 
-                    component="h3" 
-                    sx={{ 
-                      fontWeight: 'bold',
-                      fontSize: '1.1rem',
-                      lineHeight: 1.3,
-                      flex: 1,
-                      mr: 1
-                    }}
-                  >
-                    {item.name}
-                  </Typography>
-                  <Typography 
-                    variant="h6" 
-                    color="primary.main" 
-                    fontWeight="bold"
-                    sx={{ fontSize: '1.2rem' }}
-                  >
-                    {item.price?.toFixed(2) || '0.00'}€
-                  </Typography>
-                </Box>
-
-                {/* Description avec hauteur fixe */}
-                <Typography 
-                  variant="body2" 
-                  color="text.secondary" 
-                  sx={{ 
-                    mb: 2,
-                    flex: 1,
-                    minHeight: 40,
-                    lineHeight: 1.4,
-                    overflow: 'hidden',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical'
-                  }}
-                >
-                  {item.description}
-                </Typography>
-
-                {/* Tags et informations */}
-                <Box sx={{ 
-                  display: 'flex', 
-                  gap: 1, 
-                  mb: 2, 
-                  flexWrap: 'wrap',
-                  minHeight: 32
-                }}>
-                  <Chip 
-                    label={item.prepTime || '20-25 min'} 
-                    size="small" 
-                    variant="outlined"
-                    sx={{ height: 24, fontSize: '0.75rem' }}
-                  />
-                  {item.popular && (
-                    <Chip 
-                      label="Populaire" 
-                      size="small" 
-                      color="secondary"
-                      sx={{ height: 24, fontSize: '0.75rem' }}
-                    />
-                  )}
-                  {item.newDish && (
-                    <Chip 
-                      label="Nouveau" 
-                      size="small" 
-                      color="primary"
-                      sx={{ height: 24, fontSize: '0.75rem' }}
-                    />
-                  )}
-                  <Box sx={{ display: 'flex', alignItems: 'center', ml: 'auto' }}>
-                    <Rating 
-                      value={item.rating || 0} 
-                      readOnly 
-                      size="small" 
-                      precision={0.1}
-                    />
-                    <Typography variant="caption" sx={{ ml: 0.5 }}>
-                      ({item.rating?.toFixed(1) || '0.0'})
-                    </Typography>
-                  </Box>
-                </Box>
-
-                {/* Catégorie */}
-                <Typography 
-                  variant="caption" 
-                  color="text.secondary"
-                  sx={{ mb: 2 }}
-                >
-                  Catégorie: {item.category || 'Non catégorisé'}
-                </Typography>
-
-                {/* Contrôles de quantité et bouton Ajouter */}
-                <Box sx={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  mt: 'auto',
-                  pt: 2,
-                  borderTop: '1px solid',
-                  borderColor: 'divider'
-                }}>
-                  {/* Sélecteur de quantité */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <IconButton 
-                      size="small" 
-                      onClick={() => handleQuantityChange(item.id, -1)}
-                      sx={{ 
-                        width: 30,
-                        height: 30,
-                        border: '1px solid',
-                        borderColor: 'divider'
-                      }}
-                    >
-                      <RemoveIcon fontSize="small" />
-                    </IconButton>
-                    <Typography 
-                      variant="body1" 
-                      sx={{ 
-                        minWidth: 30, 
-                        textAlign: 'center',
-                        fontWeight: 'medium'
-                      }}
-                    >
-                      {quantities[item.id] || 0}
-                    </Typography>
-                    <IconButton 
-                      size="small" 
-                      onClick={() => handleQuantityChange(item.id, 1)}
-                      sx={{ 
-                        width: 30,
-                        height: 30,
-                        border: '1px solid',
-                        borderColor: 'divider'
-                      }}
-                    >
-                      <AddIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
-
-                  {/* Bouton Ajouter */}
-                  <Button 
-                    variant="contained" 
-                    onClick={() => handleAddToCart(item)}
-                    disabled={!(quantities[item.id] > 0)}
-                    sx={{ 
-                      minWidth: 100,
-                      borderRadius: 1.5,
-                      textTransform: 'none',
-                      fontWeight: 'bold',
-                      backgroundColor: '#e91e63',
-                      '&:hover': {
-                        backgroundColor: '#ad1457'
-                      }
-                    }}
-                  >
-                    {quantities[item.id] > 0 ? `Ajouter (${quantities[item.id]})` : 'Ajouter'}
-                  </Button>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-
-      {/* Message si aucun plat trouvé */}
-      {filteredItems.length === 0 && (
+      {/* Message si aucun plat */}
+      {filteredItems.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 8 }}>
           <Typography variant="h6" color="text.secondary" gutterBottom>
-            Aucun plat trouvé dans cette catégorie
+            {searchTerm ? `Aucun résultat pour "${searchTerm}"` : 'Aucun plat trouvé dans cette catégorie'}
           </Typography>
-          <Button 
-            variant="outlined" 
-            onClick={() => setSelectedCategory('all')}
-            sx={{ mt: 2 }}
-          >
-            Voir tout le menu
-          </Button>
+          <Button variant="outlined" onClick={() => { setSelectedCategory('all'); setSearchTerm(''); }}>Voir tout le menu</Button>
         </Box>
+      ) : (
+        <>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            {filteredItems.length} plat{filteredItems.length > 1 ? 's' : ''} trouvé{filteredItems.length > 1 ? 's' : ''}
+            {searchTerm && ` pour "${searchTerm}"`}
+          </Typography>
+
+          <Grid container spacing={3}>
+            {filteredItems.map((item) => (
+              <Grid item xs={12} sm={6} md={4} key={item.id}>
+                <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', borderRadius: 2, boxShadow: 2, transition: 'transform 0.2s, box-shadow 0.2s', '&:hover': { transform: 'translateY(-4px)', boxShadow: 4 } }}>
+                  <Box sx={{ position: 'relative' }}>
+                    <CardMedia
+                      component="img"
+                      sx={{ width: '100%', height: 200, objectFit: 'cover' }}
+                      image={item.image || '/images/default-dish.jpg'}
+                      alt={item.name}
+                    />
+                    <Box sx={{ position: 'absolute', top: 10, left: 10, display: 'flex', gap: 1 }}>
+                      {item.popular && <Chip label="Populaire" size="small" color="secondary" sx={{ fontWeight: 'bold' }} />}
+                      {item.isNewDish && <Chip label="Nouveau" size="small" color="primary" sx={{ fontWeight: 'bold' }} />}
+                    </Box>
+                  </Box>
+                  <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', p: 2.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                      <Typography variant="h6" component="h3" sx={{ fontWeight: 'bold', fontSize: '1.1rem', lineHeight: 1.3, flex: 1, mr: 1 }}>{item.name}</Typography>
+                      <Typography variant="h6" color="primary.main" fontWeight="bold" sx={{ fontSize: '1.2rem' }}>{item.price?.toFixed(2) || '0.00'}€</Typography>
+                    </Box>
+                    {item.category && <Chip label={item.category.name} size="small" sx={{ mb: 1.5, backgroundColor: 'primary.light', color: 'white', fontWeight: 'medium', alignSelf: 'flex-start' }} />}
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2, flex: 1, lineHeight: 1.5, minHeight: 40 }}>{item.description}</Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, mt: 'auto' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <ScheduleIcon fontSize="small" color="action" />
+                        <Typography variant="body2" color="text.secondary">{item.prepTime || '20-25 min'}</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Rating value={item.rating || 0} readOnly size="small" precision={0.5} />
+                        <Typography variant="caption" sx={{ ml: 0.5 }}>({item.rating?.toFixed(1) || '0.0'})</Typography>
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <IconButton size="small" onClick={() => handleQuantityChange(item.id, -1)} sx={{ width: 32, height: 32, border: '1px solid', borderColor: 'divider', '&:hover': { backgroundColor: 'action.hover' } }}><RemoveIcon fontSize="small" /></IconButton>
+                        <Typography variant="body1" sx={{ minWidth: 32, textAlign: 'center', fontWeight: 'medium', fontSize: '1.1rem' }}>{quantities[item.id] || 0}</Typography>
+                        <IconButton size="small" onClick={() => handleQuantityChange(item.id, 1)} sx={{ width: 32, height: 32, border: '1px solid', borderColor: 'divider', '&:hover': { backgroundColor: 'action.hover' } }}><AddIcon fontSize="small" /></IconButton>
+                      </Box>
+                      <Button variant="contained" onClick={() => handleAddToCart(item)} disabled={!(quantities[item.id] > 0)} sx={{ minWidth: 120, borderRadius: 1.5, textTransform: 'none', fontWeight: 'bold', px: 3, backgroundColor: 'primary.main', '&:hover': { backgroundColor: 'primary.dark' }, '&:disabled': { backgroundColor: 'action.disabled' } }}>{quantities[item.id] > 0 ? `Ajouter (${quantities[item.id]})` : 'Ajouter au panier'}</Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </>
       )}
     </Container>
   );

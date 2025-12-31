@@ -27,9 +27,12 @@ import {
   TableRow,
   Switch,
   FormControlLabel,
-  Badge
+  Badge,
+  CircularProgress,
+  Snackbar
 } from "@mui/material";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
 
 // Icons
 import EditIcon from "@mui/icons-material/Edit";
@@ -46,75 +49,13 @@ import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import WarningIcon from "@mui/icons-material/Warning";
 
+const API_URL = "http://localhost:8080/api";
+
 const AdminCategories = () => {
-  const [categories, setCategories] = useState([
-    {
-      id: 1,
-      name: "Burgers",
-      description: "Nos burgers gourmets faits maison",
-      icon: "🍔",
-      isActive: true,
-      dishCount: 8,
-      totalSales: 342,
-      lastUpdated: "2024-01-15",
-      color: "#FF9800"
-    },
-    {
-      id: 2,
-      name: "Pizzas",
-      description: "Pizzas italiennes au feu de bois",
-      icon: "🍕",
-      isActive: true,
-      dishCount: 6,
-      totalSales: 289,
-      lastUpdated: "2024-01-14",
-      color: "#F44336"
-    },
-    {
-      id: 3,
-      name: "Bowls",
-      description: "Bowls healthy et équilibrés",
-      icon: "🥗",
-      isActive: true,
-      dishCount: 5,
-      totalSales: 187,
-      lastUpdated: "2024-01-13",
-      color: "#4CAF50"
-    },
-    {
-      id: 4,
-      name: "Pâtes",
-      description: "Pâtes fraîches et sauces maison",
-      icon: "🍝",
-      isActive: false,
-      dishCount: 4,
-      totalSales: 92,
-      lastUpdated: "2024-01-10",
-      color: "#2196F3"
-    },
-    {
-      id: 5,
-      name: "Desserts",
-      description: "Desserts et pâtisseries maison",
-      icon: "🍰",
-      isActive: true,
-      dishCount: 7,
-      totalSales: 156,
-      lastUpdated: "2024-01-12",
-      color: "#9C27B0"
-    },
-    {
-      id: 6,
-      name: "Boissons",
-      description: "Boissons fraîches et chaudes",
-      icon: "🥤",
-      isActive: true,
-      dishCount: 12,
-      totalSales: 421,
-      lastUpdated: "2024-01-15",
-      color: "#00BCD4"
-    }
-  ]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const [newCategory, setNewCategory] = useState({
     name: "",
@@ -126,30 +67,113 @@ const AdminCategories = () => {
   const [editId, setEditId] = useState(null);
   const [editValue, setEditValue] = useState({});
   const [openDialog, setOpenDialog] = useState(false);
-  const [viewMode, setViewMode] = useState("cards"); // 'cards' or 'table'
+  const [viewMode, setViewMode] = useState("cards");
   const [showInactive, setShowInactive] = useState(false);
 
+  // Récupérer les catégories depuis l'API
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${API_URL}/categories`);
+      // Transformer les données de l'API pour inclure les propriétés nécessaires
+      const transformedCategories = response.data.map(category => ({
+        id: category.id,
+        name: category.name,
+        description: category.description || "",
+        icon: category.icon || getDefaultIcon(category.name),
+        isActive: true, // Par défaut, toutes les catégories sont actives
+        dishCount: category.dishes ? category.dishes.length : 0,
+        totalSales: calculateTotalSales(category.dishes || []),
+        lastUpdated: new Date().toISOString().split('T')[0], // À remplacer par une date réelle si disponible
+        color: getRandomColor()
+      }));
+      setCategories(transformedCategories);
+      setError(null);
+    } catch (err) {
+      console.error("Erreur lors de la récupération des catégories:", err);
+      setError("Impossible de charger les catégories. Veuillez réessayer.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calculer les ventes totales pour une catégorie
+  const calculateTotalSales = (dishes) => {
+    // Cette fonction devrait utiliser les données réelles de vente
+    // Pour l'instant, on retourne une valeur aléatoire pour la démo
+    return Math.floor(Math.random() * 500);
+  };
+
+  // Obtenir une icône par défaut basée sur le nom de la catégorie
+  const getDefaultIcon = (categoryName) => {
+    const iconMap = {
+      "Burger": "🍔",
+      "Pizza": "🍕",
+      "Salades": "🥗",
+      "Bowls": "🥗",
+      "pâtes": "🍝",
+      "desserts": "🍰",
+      "boissons": "🥤",
+      "café": "☕",
+      "sushis": "🍣",
+      "tacos": "🌯",
+      "plats": "🥘",
+      "nouilles": "🍜",
+      "viennoiseries": "🥐"
+    };
+
+    const lowerName = categoryName.toLowerCase();
+    for (const [key, icon] of Object.entries(iconMap)) {
+      if (lowerName.includes(key)) {
+        return icon;
+      }
+    }
+    return "📋";
+  };
+
   // Ajouter une catégorie
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!newCategory.name.trim()) return;
     
-    const newCat = {
-      ...newCategory,
-      id: categories.length + 1,
-      dishCount: 0,
-      totalSales: 0,
-      lastUpdated: new Date().toISOString().split('T')[0],
-      color: getRandomColor()
-    };
-    
-    setCategories([...categories, newCat]);
-    setNewCategory({
-      name: "",
-      description: "",
-      icon: "📋",
-      isActive: true
-    });
-    setOpenDialog(false);
+    try {
+      const categoryData = {
+        name: newCategory.name,
+        description: newCategory.description,
+        icon: newCategory.icon
+      };
+
+      const response = await axios.post(`${API_URL}/categories`, categoryData);
+      
+      // Ajouter la nouvelle catégorie avec les propriétés calculées
+      const newCat = {
+        id: response.data.id,
+        name: response.data.name,
+        description: response.data.description || "",
+        icon: response.data.icon || newCategory.icon,
+        isActive: newCategory.isActive,
+        dishCount: 0,
+        totalSales: 0,
+        lastUpdated: new Date().toISOString().split('T')[0],
+        color: getRandomColor()
+      };
+      
+      setCategories([...categories, newCat]);
+      setNewCategory({
+        name: "",
+        description: "",
+        icon: "📋",
+        isActive: true
+      });
+      setOpenDialog(false);
+      setSuccessMessage("Catégorie créée avec succès !");
+    } catch (err) {
+      console.error("Erreur lors de la création de la catégorie:", err);
+      setError("Erreur lors de la création de la catégorie.");
+    }
   };
 
   // Éditer une catégorie
@@ -158,13 +182,28 @@ const AdminCategories = () => {
     setEditValue({ ...category });
   };
 
-  const saveEdit = () => {
-    setCategories(categories.map(cat => 
-      cat.id === editId 
-        ? { ...editValue, lastUpdated: new Date().toISOString().split('T')[0] }
-        : cat
-    ));
-    setEditId(null);
+  const saveEdit = async () => {
+    try {
+      const updateData = {
+        name: editValue.name,
+        description: editValue.description,
+        icon: editValue.icon
+      };
+
+      await axios.put(`${API_URL}/categories/${editId}`, updateData);
+      
+      // Mettre à jour localement
+      setCategories(categories.map(cat => 
+        cat.id === editId 
+          ? { ...editValue, lastUpdated: new Date().toISOString().split('T')[0] }
+          : cat
+      ));
+      setEditId(null);
+      setSuccessMessage("Catégorie mise à jour avec succès !");
+    } catch (err) {
+      console.error("Erreur lors de la mise à jour de la catégorie:", err);
+      setError("Erreur lors de la mise à jour de la catégorie.");
+    }
   };
 
   const cancelEdit = () => {
@@ -172,9 +211,16 @@ const AdminCategories = () => {
   };
 
   // Supprimer une catégorie
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (window.confirm("Êtes-vous sûr de vouloir supprimer cette catégorie ? Les plats associés deviendront 'Non catégorisés'.")) {
-      setCategories(categories.filter(cat => cat.id !== id));
+      try {
+        await axios.delete(`${API_URL}/categories/${id}`);
+        setCategories(categories.filter(cat => cat.id !== id));
+        setSuccessMessage("Catégorie supprimée avec succès !");
+      } catch (err) {
+        console.error("Erreur lors de la suppression de la catégorie:", err);
+        setError("Erreur lors de la suppression de la catégorie.");
+      }
     }
   };
 
@@ -191,9 +237,9 @@ const AdminCategories = () => {
   const activeCategories = categories.filter(cat => cat.isActive).length;
   const totalDishes = categories.reduce((sum, cat) => sum + cat.dishCount, 0);
   const totalSales = categories.reduce((sum, cat) => sum + cat.totalSales, 0);
-  const mostPopularCategory = categories.reduce((max, cat) => 
-    cat.totalSales > max.totalSales ? cat : max, categories[0]
-  );
+  const mostPopularCategory = categories.length > 0 
+    ? categories.reduce((max, cat) => cat.totalSales > max.totalSales ? cat : max, categories[0])
+    : null;
 
   const filteredCategories = showInactive 
     ? categories 
@@ -211,8 +257,32 @@ const AdminCategories = () => {
   // Icônes disponibles
   const availableIcons = ["🍔", "🍕", "🥗", "🍝", "🍰", "🥤", "☕", "🍣", "🌯", "🥘", "🍜", "🧁", "🍩", "🍦"];
 
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <Box>
+      {/* Notifications */}
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={6000}
+        onClose={() => setSuccessMessage("")}
+        message={successMessage}
+      />
+      
+      <Snackbar
+        open={!!error}
+        autoHideDuration={6000}
+        onClose={() => setError(null)}
+        message={error}
+        color="error"
+      />
+
       {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={4}>
         <Box>
@@ -300,7 +370,7 @@ const AdminCategories = () => {
                   Plus populaire
                 </Typography>
                 <Typography variant="h5" fontWeight="bold">
-                  {mostPopularCategory?.icon} {mostPopularCategory?.name}
+                  {mostPopularCategory ? `${mostPopularCategory.icon} ${mostPopularCategory.name}` : "Aucune"}
                 </Typography>
               </Box>
               <LocalFireDepartment sx={{ color: 'error.main', fontSize: 40 }} />

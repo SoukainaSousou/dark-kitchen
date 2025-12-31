@@ -1,7 +1,8 @@
+// Home.js
 import React, { useEffect, useState } from 'react';
 import {
   Container, Box, Typography, Button, Grid, Card, CardContent,
-  CardMedia, Chip, Rating
+  CardMedia, Chip, Rating, CircularProgress, Alert
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
@@ -11,15 +12,30 @@ import { DishService } from '../services/DishService';
 
 const Home = () => {
   const [featuredDishes, setFeaturedDishes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Récupérer les plats populaires depuis le backend
   useEffect(() => {
-    DishService.getFeaturedDishes().then(data => setFeaturedDishes(data));
+    const fetchFeaturedDishes = async () => {
+      try {
+        setLoading(true);
+        const data = await DishService.getFeaturedDishes();
+        setFeaturedDishes(data);
+        setError(null);
+      } catch (err) {
+        setError("Impossible de charger les plats vedettes");
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFeaturedDishes();
   }, []);
 
   return (
     <Box>
-      {/* Hero Section */}
+      {/* Hero Section (inchangée) */}
       <Box sx={{ background: 'linear-gradient(135deg, #e91e63 0%, #ad1457 100%)', color: 'white', py: { xs: 8, md: 12 }, textAlign: 'center' }}>
         <Container maxWidth="lg">
           <Typography variant="h2" fontWeight="bold" gutterBottom>TasteLab</Typography>
@@ -68,41 +84,104 @@ const Home = () => {
           Découvrez nos plats les plus appréciés
         </Typography>
 
-        <Grid container spacing={4}>
-          {featuredDishes.map((dish) => (
-            <Grid item xs={12} md={4} key={dish.id}>
-              <Card sx={{ height: '100%', position: 'relative' }}>
-                {dish.popular && <Chip label="Populaire" color="secondary" sx={{ position: 'absolute', top: 10, left: 10, zIndex: 1 }} />}
-                {dish.isNewDish && <Chip label="Nouveau" color="primary" sx={{ position: 'absolute', top: 10, left: 10, zIndex: 1 }} />}
-                
-                <CardMedia component="img" height="200" image={dish.image} alt={dish.name} />
-                
-                <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                    <Typography variant="h6">{dish.name}</Typography>
-                    <Typography variant="h6" color="primary.main" fontWeight="bold">{dish.price}€</Typography>
+        {loading ? (
+          <Box display="flex" justifyContent="center" alignItems="center" minHeight="300px">
+            <CircularProgress />
+          </Box>
+        ) : error ? (
+          <Alert severity="error" sx={{ mb: 4 }}>{error}</Alert>
+        ) : featuredDishes.length === 0 ? (
+          <Typography textAlign="center" color="text.secondary">
+            Aucun plat vedette disponible pour le moment.
+          </Typography>
+        ) : (
+          <Grid container spacing={4}>
+            {featuredDishes.map((dish) => (
+              <Grid item xs={12} sm={6} md={4} key={dish.id}>
+                <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                  {/* Badges */}
+                  <Box sx={{ position: 'absolute', top: 10, left: 10, zIndex: 1, display: 'flex', gap: 1 }}>
+                    {dish.popular && <Chip label="Populaire" color="secondary" size="small" />}
+                    {dish.isNewDish && <Chip label="Nouveau" color="primary" size="small" />}
                   </Box>
                   
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    {dish.description}
-                  </Typography>
+                  {/* Image */}
+                  <CardMedia 
+                    component="img" 
+                    height="200" 
+                    image={dish.image || '/default-dish.jpg'} 
+                    alt={dish.name}
+                    sx={{ objectFit: 'cover' }}
+                  />
                   
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Rating value={dish.rating} readOnly size="small" />
-                      <Typography variant="body2" sx={{ ml: 1 }}>({dish.rating})</Typography>
+                  {/* Contenu */}
+                  <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                    {/* Nom du plat et prix */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                      <Typography variant="h6" component="h3" fontWeight="medium">
+                        {dish.name}
+                      </Typography>
+                      <Typography variant="h6" color="primary.main" fontWeight="bold">
+                        {dish.price}€
+                      </Typography>
                     </Box>
-                    <Chip icon={<ScheduleIcon />} label={dish.prepTime} size="small" variant="outlined" />
-                  </Box>
-                  
-                  <Button variant="contained" fullWidth sx={{ mt: 2 }} component={Link} to="/menu">
-                    Commander
-                  </Button>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+                    
+                    {/* Catégorie */}
+                    {dish.category && (
+                      <Chip 
+                        label={dish.category.name} 
+                        size="small" 
+                        sx={{ 
+                          mb: 2, 
+                          alignSelf: 'flex-start',
+                          backgroundColor: 'primary.light',
+                          color: 'white'
+                        }} 
+                      />
+                    )}
+                    
+                    {/* Description */}
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2, flexGrow: 1 }}>
+                      {dish.description}
+                    </Typography>
+                    
+                    {/* Note et temps de préparation */}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 'auto' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Rating 
+                          value={dish.rating || 0} 
+                          readOnly 
+                          size="small" 
+                          precision={0.5}
+                        />
+                        <Typography variant="body2" sx={{ ml: 1 }}>
+                          ({dish.rating || 0})
+                        </Typography>
+                      </Box>
+                      <Chip 
+                        icon={<ScheduleIcon />} 
+                        label={dish.prepTime || '15 min'} 
+                        size="small" 
+                        variant="outlined" 
+                      />
+                    </Box>
+                    
+                    {/* Bouton Commander */}
+                    <Button 
+                      variant="contained" 
+                      fullWidth 
+                      sx={{ mt: 2 }}
+                      component={Link}
+                      to={`/dish/${dish.id}`} // Lien vers la page détail du plat
+                    >
+                      Commander
+                    </Button>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        )}
       </Container>
     </Box>
   );

@@ -20,7 +20,6 @@ import {
   IconButton,
   Stack,
   Paper,
-  Divider,
   Table,
   TableBody,
   TableCell,
@@ -32,7 +31,9 @@ import {
   Avatar,
   Tooltip,
   Badge,
-  Rating
+  Rating,
+  CircularProgress,
+  Snackbar
 } from "@mui/material";
 import {
   Add,
@@ -41,151 +42,299 @@ import {
   Restaurant,
   LocalFireDepartment,
   Star,
-  Visibility,
-  VisibilityOff,
-  Category,
   AttachMoney,
   AccessTime,
-  Warning,
   ShoppingCart,
   Search,
   FilterList,
-  MoreVert,
   CheckCircle,
   Cancel,
   TrendingUp,
-  TrendingDown
+  Image as ImageIcon
 } from "@mui/icons-material";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
+
+const API_URL = "http://localhost:8080/api";
 
 const AdminMenu = () => {
-  const [dishes, setDishes] = useState([
-    { 
-      id: 1, 
-      name: "Poulet Teriyaki", 
-      price: 14.90,
-      description: "Poulet mariné sauce teriyaki, riz basmati et légumes sautés",
-      category: "Plats principaux",
-      preparationTime: "15-20 min",
-      isAvailable: true,
-      rating: 4.5,
-      sales: 128,
-      cost: 5.30,
-      profit: 9.60,
-      ingredients: ["Poulet", "Sauce teriyaki", "Riz basmati", "Légumes"],
-      lastOrder: "2024-01-15 14:30"
-    },
-    { 
-      id: 2, 
-      name: "Burger Gourmet", 
-      price: 16.50,
-      description: "Steak haché 180g, cheddar, bacon croustillant, sauce maison",
-      category: "Burgers",
-      preparationTime: "12-18 min",
-      isAvailable: true,
-      rating: 4.8,
-      sales: 156,
-      cost: 6.20,
-      profit: 10.30,
-      ingredients: ["Steak haché", "Pain brioché", "Cheddar", "Bacon"],
-      lastOrder: "2024-01-15 15:15"
-    },
-    { 
-      id: 3, 
-      name: "Salade César", 
-      price: 12.90,
-      description: "Laitue romaine, croûtons, parmesan, sauce césar maison",
-      category: "Salades",
-      preparationTime: "8-12 min",
-      isAvailable: true,
-      rating: 4.3,
-      sales: 89,
-      cost: 4.50,
-      profit: 8.40,
-      ingredients: ["Laitue romaine", "Croûtons", "Parmesan", "Poulet"],
-      lastOrder: "2024-01-15 12:45"
-    },
-    { 
-      id: 4, 
-      name: "Pizza Margherita", 
-      price: 13.90,
-      description: "Tomates San Marzano, mozzarella di bufala, basilic frais",
-      category: "Pizzas",
-      preparationTime: "20-25 min",
-      isAvailable: false,
-      rating: 4.6,
-      sales: 102,
-      cost: 4.80,
-      profit: 9.10,
-      ingredients: ["Pâte à pizza", "Tomates", "Mozzarella", "Basilic"],
-      lastOrder: "2024-01-14 19:30"
-    },
-    { 
-      id: 5, 
-      name: "Pasta Carbonara", 
-      price: 15.90,
-      description: "Spaghetti, pancetta, œuf, pecorino romano, poivre noir",
-      category: "Pâtes",
-      preparationTime: "15-18 min",
-      isAvailable: true,
-      rating: 4.7,
-      sales: 94,
-      cost: 5.60,
-      profit: 10.30,
-      ingredients: ["Spaghetti", "Pancetta", "Œufs", "Pecorino"],
-      lastOrder: "2024-01-15 13:20"
-    },
-    { 
-      id: 6, 
-      name: "Tiramisu", 
-      price: 7.90,
-      description: "Dessert italien au café, mascarpone et cacao",
-      category: "Desserts",
-      preparationTime: "5 min",
-      isAvailable: true,
-      rating: 4.9,
-      sales: 67,
-      cost: 2.80,
-      profit: 5.10,
-      ingredients: ["Mascarpone", "Biscuits", "Café", "Cacao"],
-      lastOrder: "2024-01-15 16:00"
-    }
-  ]);
+  const [dishes, setDishes] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const [openDialog, setOpenDialog] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [currentDish, setCurrentDish] = useState(null);
+  const [currentDish, setCurrentDish] = useState({
+    name: "",
+    description: "",
+    price: "",
+    categoryId: "",
+    prepTime: "15-20",
+    image: "",
+    rating: 4.0,
+    isPopular: false,
+    isNew: false
+  });
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Tous");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [fileName, setFileName] = useState("");
 
-  const categories = ["Tous", "Plats principaux", "Burgers", "Salades", "Pizzas", "Pâtes", "Desserts", "Boissons"];
+  // Configuration axios
+  const axiosInstance = axios.create({
+    baseURL: "http://localhost:8080",
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
 
-  const handleDelete = (id) => {
-    if (window.confirm("Êtes-vous sûr de vouloir supprimer ce plat ?")) {
-      setDishes(dishes.filter(dish => dish.id !== id));
+  // Récupérer les plats et catégories depuis l'API
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      
+      // Récupérer les plats
+      const dishesResponse = await axiosInstance.get("/api/dishes");
+      
+      // Récupérer les catégories
+      const categoriesResponse = await axiosInstance.get("/api/categories");
+      setCategories(categoriesResponse.data);
+      
+      // Transformer les données des plats
+      const transformedDishes = dishesResponse.data.map(dish => {
+        return {
+          id: dish.id,
+          name: dish.name,
+          price: dish.price || 0,
+          description: dish.description || "",
+          category: dish.category ? dish.category.name : "Non catégorisé",
+          categoryId: dish.category ? dish.category.id : null,
+          preparationTime: dish.prepTime ? `${dish.prepTime} min` : "15-20 min",
+          isAvailable: true,
+          rating: dish.rating || 4.0,
+          sales: Math.floor(Math.random() * 200),
+          cost: dish.price ? dish.price * 0.4 : 0,
+          profit: dish.price ? dish.price * 0.6 : 0,
+          image: dish.image || `/images/dishes/${dish.name.toLowerCase().replace(/\s+/g, '-')}.png`,
+          ingredients: [],
+          lastOrder: new Date().toISOString().split('T')[0],
+          isPopular: dish.isPopular || false,
+          isNew: dish.isNew || false
+        };
+      });
+      
+      setDishes(transformedDishes);
+      setError(null);
+    } catch (err) {
+      console.error("Erreur détaillée:", err);
+      setError(`Impossible de charger les données: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Gestion de l'image - Conserver le nom original
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      setFileName(file.name); // Conserver le nom du fichier
+      
+      // Créer un aperçu local
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+      
+      // Générer un nom d'image basé sur le nom du plat ou le nom du fichier
+      const imageName = currentDish.name 
+        ? `${currentDish.name.toLowerCase().replace(/\s+/g, '-')}.${file.name.split('.').pop()}`
+        : file.name;
+      
+      setCurrentDish(prev => ({
+        ...prev,
+        image: `/images/dishes/${imageName}`
+      }));
+    }
+  };
+
+  // Générer l'URL de l'image avec le nom original
+  const getImageUrl = () => {
+    if (imageFile) {
+      // Utiliser le nom original du fichier ou générer un nom basé sur le plat
+      const originalName = imageFile.name;
+      const extension = originalName.split('.').pop();
+      
+      // Si un nom de plat est fourni, l'utiliser pour nommer l'image
+      if (currentDish.name && currentDish.name.trim() !== "") {
+        const dishName = currentDish.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '-')
+          .replace(/-+/g, '-');
+        return `/images/dishes/${dishName}.${extension}`;
+      }
+      
+      // Sinon utiliser le nom original du fichier
+      return `/images/dishes/${originalName}`;
+    }
+    
+    // Si pas de fichier mais un nom de plat existe, générer une URL
+    if (currentDish.name && currentDish.name.trim() !== "") {
+      const dishName = currentDish.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-');
+      return `/images/dishes/${dishName}.png`;
+    }
+    
+    // Fallback par défaut
+    return currentDish.image || "";
+  };
+
+  // Ajouter un plat
+  const handleAdd = async () => {
+    try {
+      // Générer l'URL de l'image avec le nom original
+      const imageUrl = getImageUrl();
+      
+      const dishData = {
+        name: currentDish.name,
+        description: currentDish.description,
+        price: parseFloat(currentDish.price),
+        image: imageUrl,
+        prepTime: currentDish.prepTime || "15-20",
+        rating: currentDish.rating || 4.0,
+        isPopular: currentDish.isPopular || false,
+        isNew: currentDish.isNew || false,
+        category: { id: parseInt(currentDish.categoryId) }
+      };
+
+      console.log("Création du plat avec données:", dishData);
+      
+      const response = await axiosInstance.post("/api/dishes", dishData);
+      console.log("Plat créé avec succès:", response.data);
+      
+      // Rafraîchir les données
+      await fetchData();
+      
+      resetForm();
+      setOpenDialog(false);
+      setSuccessMessage(`✅ Plat "${currentDish.name}" créé avec succès !`);
+    } catch (err) {
+      console.error("Erreur complète:", err);
+      setError(`❌ Erreur lors de la création: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
+  // Modifier un plat
+  const handleUpdate = async () => {
+    try {
+      const imageUrl = getImageUrl();
+      
+      const dishData = {
+        name: currentDish.name,
+        description: currentDish.description,
+        price: parseFloat(currentDish.price),
+        image: imageUrl,
+        prepTime: currentDish.prepTime,
+        rating: currentDish.rating,
+        isPopular: currentDish.isPopular,
+        isNew: currentDish.isNew,
+        category: { id: parseInt(currentDish.categoryId) }
+      };
+
+      console.log("Mise à jour du plat", currentDish.id, "avec données:", dishData);
+      
+      const response = await axiosInstance.put(`/api/dishes/${currentDish.id}`, dishData);
+      console.log("Réponse mise à jour:", response.data);
+      
+      // Rafraîchir les données
+      await fetchData();
+      
+      resetForm();
+      setOpenDialog(false);
+      setSuccessMessage(`✅ Plat "${currentDish.name}" mis à jour avec succès !`);
+    } catch (err) {
+      console.error("Erreur lors de la mise à jour:", err);
+      setError(`❌ Erreur lors de la mise à jour: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
+  // Supprimer un plat
+  const handleDelete = async (id) => {
+    const dishToDelete = dishes.find(d => d.id === id);
+    if (window.confirm(`Êtes-vous sûr de vouloir supprimer le plat "${dishToDelete?.name}" ?`)) {
+      try {
+        await axiosInstance.delete(`/api/dishes/${id}`);
+        
+        // Rafraîchir les données
+        await fetchData();
+        
+        setSuccessMessage(`✅ Plat "${dishToDelete?.name}" supprimé avec succès !`);
+      } catch (err) {
+        console.error("Erreur lors de la suppression:", err);
+        setError(`❌ Erreur lors de la suppression: ${err.response?.data?.message || err.message}`);
+      }
+    }
+  };
+
+  // Basculer disponibilité
   const toggleAvailability = (id) => {
     setDishes(dishes.map(dish => 
       dish.id === id ? { ...dish, isAvailable: !dish.isAvailable } : dish
     ));
   };
 
-  const handleSubmit = (formData) => {
-    if (editMode) {
-      setDishes(dishes.map(dish => 
-        dish.id === formData.id ? formData : dish
-      ));
-    } else {
-      setDishes([...dishes, { ...formData, id: dishes.length + 1 }]);
-    }
-    setOpenDialog(false);
-    setCurrentDish(null);
+  // Réinitialiser le formulaire
+  const resetForm = () => {
+    setCurrentDish({
+      name: "",
+      description: "",
+      price: "",
+      categoryId: "",
+      prepTime: "15-20",
+      image: "",
+      rating: 4.0,
+      isPopular: false,
+      isNew: false
+    });
+    setImageFile(null);
+    setImagePreview("");
+    setFileName("");
   };
 
+  // Ouvrir le dialogue d'édition
+  const openEditDialog = (dish) => {
+    setCurrentDish({
+      id: dish.id,
+      name: dish.name,
+      description: dish.description,
+      price: dish.price,
+      categoryId: dish.categoryId || "",
+      prepTime: dish.preparationTime.replace(" min", "").split("-")[0] || "15",
+      image: dish.image,
+      rating: dish.rating,
+      isPopular: dish.isPopular,
+      isNew: dish.isNew
+    });
+    setImagePreview(dish.image);
+    setFileName(dish.image ? dish.image.split('/').pop() : "");
+    setEditMode(true);
+    setOpenDialog(true);
+  };
+
+  // Filtrer les plats
   const filteredDishes = dishes.filter(dish => {
     const matchesSearch = dish.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          dish.description.toLowerCase().includes(searchTerm.toLowerCase());
@@ -202,9 +351,13 @@ const AdminMenu = () => {
     setPage(0);
   };
 
+  // Calcul des statistiques
   const totalRevenue = dishes.reduce((sum, dish) => sum + (dish.price * dish.sales), 0).toFixed(2);
   const totalProfit = dishes.reduce((sum, dish) => sum + (dish.profit * dish.sales), 0).toFixed(2);
   const availableDishes = dishes.filter(d => d.isAvailable).length;
+  const averageRating = dishes.length > 0 
+    ? (dishes.reduce((sum, dish) => sum + dish.rating, 0) / dishes.length).toFixed(1)
+    : 0;
 
   const getPopularityColor = (sales) => {
     if (sales > 120) return "error";
@@ -213,11 +366,34 @@ const AdminMenu = () => {
   };
 
   const getProfitMargin = (dish) => {
+    if (!dish.price || dish.price === 0) return "0";
     return ((dish.profit / dish.price) * 100).toFixed(1);
   };
 
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+        <Typography ml={2}>Chargement du menu...</Typography>
+      </Box>
+    );
+  }
+
   return (
     <Box>
+      {/* Notifications */}
+      {successMessage && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMessage("")}>
+          {successMessage}
+        </Alert>
+      )}
+      
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
       {/* Header avec stats */}
       <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={4}>
         <Box>
@@ -225,7 +401,7 @@ const AdminMenu = () => {
             📋 Gestion du menu
           </Typography>
           <Typography color="text.secondary">
-            Tableau de bord complet des plats et de leur performance
+            {dishes.length} plats disponibles dans votre menu
           </Typography>
         </Box>
         
@@ -233,8 +409,8 @@ const AdminMenu = () => {
           variant="contained"
           startIcon={<Add />}
           onClick={() => {
+            resetForm();
             setEditMode(false);
-            setCurrentDish(null);
             setOpenDialog(true);
           }}
           size="large"
@@ -301,7 +477,7 @@ const AdminMenu = () => {
                   Note moyenne
                 </Typography>
                 <Typography variant="h5" fontWeight="bold">
-                  {(dishes.reduce((sum, dish) => sum + dish.rating, 0) / dishes.length).toFixed(1)}/5
+                  {averageRating}/5
                 </Typography>
               </Box>
               <Star sx={{ color: 'warning.main', fontSize: 40 }} />
@@ -334,7 +510,8 @@ const AdminMenu = () => {
                 onChange={(e) => setSelectedCategory(e.target.value)}
                 label="Catégorie"
               >
-                {categories.map(category => (
+                <MenuItem value="Tous">Toutes les catégories</MenuItem>
+                {Array.from(new Set(dishes.map(d => d.category))).map(category => (
                   <MenuItem key={category} value={category}>
                     {category}
                   </MenuItem>
@@ -363,8 +540,8 @@ const AdminMenu = () => {
               variant="contained"
               startIcon={<Add />}
               onClick={() => {
+                resetForm();
                 setEditMode(false);
-                setCurrentDish(null);
                 setOpenDialog(true);
               }}
             >
@@ -381,6 +558,7 @@ const AdminMenu = () => {
             <Table>
               <TableHead sx={{ bgcolor: 'grey.50' }}>
                 <TableRow>
+                  <TableCell><Typography fontWeight="bold">Image</Typography></TableCell>
                   <TableCell><Typography fontWeight="bold">Plat</Typography></TableCell>
                   <TableCell><Typography fontWeight="bold">Catégorie</Typography></TableCell>
                   <TableCell align="right"><Typography fontWeight="bold">Prix</Typography></TableCell>
@@ -393,268 +571,395 @@ const AdminMenu = () => {
               </TableHead>
               
               <TableBody>
-                {filteredDishes
-                  .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                  .map((dish) => (
-                  <TableRow 
-                    key={dish.id}
-                    hover
-                    sx={{ 
-                      '&:hover': { bgcolor: 'action.hover' },
-                      opacity: dish.isAvailable ? 1 : 0.7
-                    }}
-                  >
-                    {/* Nom et description */}
-                    <TableCell>
-                      <Box>
-                        <Typography fontWeight="bold">{dish.name}</Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {dish.description.length > 50 
-                            ? `${dish.description.substring(0, 50)}...` 
-                            : dish.description}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          <AccessTime fontSize="inherit" sx={{ mr: 0.5 }} />
-                          {dish.preparationTime}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                    
-                    {/* Catégorie */}
-                    <TableCell>
-                      <Chip 
-                        label={dish.category} 
-                        size="small" 
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    
-                    {/* Prix */}
-                    <TableCell align="right">
-                      <Typography variant="h6" color="primary" fontWeight="bold">
-                        {dish.price.toFixed(2)}€
+                {filteredDishes.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
+                      <Typography color="text.secondary">
+                        {dishes.length === 0 ? "Aucun plat dans le menu" : "Aucun plat trouvé avec ces critères"}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Coût: {dish.cost.toFixed(2)}€
-                      </Typography>
-                    </TableCell>
-                    
-                    {/* Disponibilité */}
-                    <TableCell align="center">
-                      <Tooltip title={dish.isAvailable ? "Disponible" : "Indisponible"}>
-                        <IconButton
-                          size="small"
-                          onClick={() => toggleAvailability(dish.id)}
-                          color={dish.isAvailable ? "success" : "error"}
-                        >
-                          {dish.isAvailable ? <CheckCircle /> : <Cancel />}
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                    
-                    {/* Ventes */}
-                    <TableCell align="right">
-                      <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
-                        <Badge 
-                          badgeContent={dish.sales} 
-                          color={getPopularityColor(dish.sales)}
-                          sx={{ 
-                            '& .MuiBadge-badge': { 
-                              fontSize: '0.75rem',
-                              height: 20,
-                              minWidth: 20 
-                            }
-                          }}
-                        >
-                          <ShoppingCart color="action" />
-                        </Badge>
-                        <Typography fontWeight="medium">
-                          {dish.sales}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                    
-                    {/* Note */}
-                    <TableCell align="center">
-                      <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
-                        <Rating value={dish.rating} size="small" readOnly precision={0.5} />
-                        <Typography variant="body2">
-                          {dish.rating}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                    
-                    {/* Marge */}
-                    <TableCell align="right">
-                      <Chip
-                        label={`${getProfitMargin(dish)}%`}
-                        size="small"
-                        color={getProfitMargin(dish) > 60 ? "success" : "default"}
-                        variant="outlined"
-                      />
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        Profit: {dish.profit.toFixed(2)}€
-                      </Typography>
-                    </TableCell>
-                    
-                    {/* Actions */}
-                    <TableCell align="center">
-                      <Stack direction="row" spacing={1} justifyContent="center">
-                        <Tooltip title="Modifier">
-                          <IconButton
-                            size="small"
-                            color="primary"
-                            onClick={() => {
-                              setCurrentDish(dish);
-                              setEditMode(true);
-                              setOpenDialog(true);
-                            }}
-                          >
-                            <Edit fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        
-                        <Tooltip title="Supprimer">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleDelete(dish.id)}
-                          >
-                            <Delete fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredDishes
+                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                    .map((dish) => (
+                    <TableRow 
+                      key={dish.id}
+                      hover
+                      sx={{ 
+                        '&:hover': { bgcolor: 'action.hover' },
+                        opacity: dish.isAvailable ? 1 : 0.7
+                      }}
+                    >
+                      {/* Image */}
+                      <TableCell>
+                        <Avatar
+                          src={dish.image}
+                          alt={dish.name}
+                          sx={{ 
+                            width: 60, 
+                            height: 60, 
+                            border: '1px solid #ddd',
+                            bgcolor: 'grey.100'
+                          }}
+                          variant="rounded"
+                        >
+                          {!dish.image && <Restaurant />}
+                        </Avatar>
+                      </TableCell>
+                      
+                      {/* Nom et description */}
+                      <TableCell>
+                        <Box>
+                          <Typography fontWeight="bold">{dish.name}</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {dish.description.length > 50 
+                              ? `${dish.description.substring(0, 50)}...` 
+                              : dish.description}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            <AccessTime fontSize="inherit" sx={{ mr: 0.5 }} />
+                            {dish.preparationTime}
+                          </Typography>
+                          <Box mt={0.5}>
+                            {dish.isNew && (
+                              <Chip 
+                                label="Nouveau" 
+                                size="small" 
+                                color="success" 
+                                sx={{ mr: 0.5 }}
+                              />
+                            )}
+                            {dish.isPopular && (
+                              <Chip 
+                                label="Populaire" 
+                                size="small" 
+                                color="warning"
+                              />
+                            )}
+                          </Box>
+                        </Box>
+                      </TableCell>
+                      
+                      {/* Catégorie */}
+                      <TableCell>
+                        <Chip 
+                          label={dish.category} 
+                          size="small" 
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      
+                      {/* Prix */}
+                      <TableCell align="right">
+                        <Typography variant="h6" color="primary" fontWeight="bold">
+                          {dish.price.toFixed(2)}€
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Coût: {dish.cost.toFixed(2)}€
+                        </Typography>
+                      </TableCell>
+                      
+                      {/* Disponibilité */}
+                      <TableCell align="center">
+                        <Tooltip title={dish.isAvailable ? "Disponible" : "Indisponible"}>
+                          <IconButton
+                            size="small"
+                            onClick={() => toggleAvailability(dish.id)}
+                            color={dish.isAvailable ? "success" : "error"}
+                          >
+                            {dish.isAvailable ? <CheckCircle /> : <Cancel />}
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                      
+                      {/* Ventes */}
+                      <TableCell align="right">
+                        <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                          <Badge 
+                            badgeContent={dish.sales} 
+                            color={getPopularityColor(dish.sales)}
+                            sx={{ 
+                              '& .MuiBadge-badge': { 
+                                fontSize: '0.75rem',
+                                height: 20,
+                                minWidth: 20 
+                              }
+                            }}
+                          >
+                            <ShoppingCart color="action" />
+                          </Badge>
+                          <Typography fontWeight="medium">
+                            {dish.sales}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      
+                      {/* Note */}
+                      <TableCell align="center">
+                        <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                          <Rating value={dish.rating} size="small" readOnly precision={0.5} />
+                          <Typography variant="body2">
+                            {dish.rating}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      
+                      {/* Marge */}
+                      <TableCell align="right">
+                        <Chip
+                          label={`${getProfitMargin(dish)}%`}
+                          size="small"
+                          color={getProfitMargin(dish) > 60 ? "success" : "default"}
+                          variant="outlined"
+                        />
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Profit: {dish.profit.toFixed(2)}€
+                        </Typography>
+                      </TableCell>
+                      
+                      {/* Actions */}
+                      <TableCell align="center">
+                        <Stack direction="row" spacing={1} justifyContent="center">
+                          <Tooltip title="Modifier">
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => openEditDialog(dish)}
+                            >
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          
+                          <Tooltip title="Supprimer">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDelete(dish.id)}
+                            >
+                              <Delete fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </TableContainer>
           
           {/* Pagination */}
-          <TablePagination
-            rowsPerPageOptions={[5, 10, 25]}
-            component="div"
-            count={filteredDishes.length}
-            rowsPerPage={rowsPerPage}
-            page={page}
-            onPageChange={handleChangePage}
-            onRowsPerPageChange={handleChangeRowsPerPage}
-            labelRowsPerPage="Plats par page:"
-            labelDisplayedRows={({ from, to, count }) => 
-              `${from}-${to} sur ${count} plats`
-            }
-          />
-          
-          {filteredDishes.length === 0 && (
-            <Box py={4} textAlign="center">
-              <Typography color="text.secondary">
-                Aucun plat trouvé avec ces critères
-              </Typography>
-            </Box>
+          {filteredDishes.length > 0 && (
+            <TablePagination
+              rowsPerPageOptions={[5, 10, 25]}
+              component="div"
+              count={filteredDishes.length}
+              rowsPerPage={rowsPerPage}
+              page={page}
+              onPageChange={handleChangePage}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+              labelRowsPerPage="Plats par page:"
+              labelDisplayedRows={({ from, to, count }) => 
+                `${from}-${to} sur ${count} plats`
+              }
+            />
           )}
         </CardContent>
       </Card>
 
       {/* Dialogue CRUD */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
         <DialogTitle>
           {editMode ? "Modifier le plat" : "Ajouter un nouveau plat"}
         </DialogTitle>
         <DialogContent dividers>
-          <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Nom du plat"
-                defaultValue={currentDish?.name || ""}
-                margin="normal"
-                required
-              />
-            </Grid>
-            
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Prix (€)"
-                type="number"
-                defaultValue={currentDish?.price || ""}
-                margin="normal"
-                required
-                InputProps={{
-                  inputProps: { min: 0, step: 0.01 }
-                }}
-              />
-            </Grid>
-            
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Coût (€)"
-                type="number"
-                defaultValue={currentDish?.cost || ""}
-                margin="normal"
-                InputProps={{
-                  inputProps: { min: 0, step: 0.01 }
-                }}
-              />
-            </Grid>
-            
-            <Grid item xs={12}>
-              <FormControl fullWidth margin="normal">
-                <InputLabel>Catégorie</InputLabel>
-                <Select
-                  defaultValue={currentDish?.category || ""}
-                  label="Catégorie"
-                  required
+          <Grid container spacing={3}>
+            {/* Colonne gauche - Image */}
+            <Grid item xs={12} md={4}>
+              <Box>
+                <Typography variant="subtitle2" gutterBottom>
+                  Image du plat
+                  {fileName && (
+                    <Typography variant="caption" color="primary" sx={{ ml: 1 }}>
+                      ({fileName})
+                    </Typography>
+                  )}
+                </Typography>
+                <Box
+                  sx={{
+                    border: '2px dashed #ddd',
+                    borderRadius: 2,
+                    p: 2,
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    '&:hover': {
+                      borderColor: 'primary.main',
+                      bgcolor: 'action.hover'
+                    }
+                  }}
+                  onClick={() => document.getElementById('image-upload').click()}
                 >
-                  {categories.filter(c => c !== "Tous").map(category => (
-                    <MenuItem key={category} value={category}>
-                      {category}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Description"
-                defaultValue={currentDish?.description || ""}
-                margin="normal"
-                multiline
-                rows={2}
-              />
-            </Grid>
-            
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Temps de préparation"
-                defaultValue={currentDish?.preparationTime || ""}
-                margin="normal"
-              />
-            </Grid>
-            
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Ingrédients principaux"
-                defaultValue={currentDish?.ingredients?.join(", ") || ""}
-                margin="normal"
-              />
-            </Grid>
-            
-            <Grid item xs={12}>
-              <FormControlLabel
-                control={
-                  <Switch 
-                    defaultChecked={currentDish?.isAvailable ?? true} 
+                  <input
+                    id="image-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    style={{ display: 'none' }}
                   />
-                }
-                label="Disponible à la vente"
-              />
+                  
+                  {imagePreview || currentDish.image ? (
+                    <Box
+                      component="img"
+                      src={imagePreview || currentDish.image}
+                      alt="Preview"
+                      sx={{
+                        width: '100%',
+                        maxHeight: 200,
+                        objectFit: 'cover',
+                        borderRadius: 1,
+                        mb: 2
+                      }}
+                      onError={(e) => {
+                        e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 24 24"><path fill="%23ccc" d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>';
+                      }}
+                    />
+                  ) : (
+                    <Box py={4}>
+                      <ImageIcon sx={{ fontSize: 60, color: 'text.secondary', mb: 2 }} />
+                      <Typography color="text.secondary">
+                        Cliquez pour ajouter une image
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        PNG, JPG, GIF • Max 5MB
+                      </Typography>
+                    </Box>
+                  )}
+                  
+                  {currentDish.name && !imageFile && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                      L'image sera enregistrée sous: 
+                      <br />
+                      <strong>/images/dishes/{currentDish.name.toLowerCase().replace(/\s+/g, '-')}.png</strong>
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+            </Grid>
+            
+            {/* Colonne droite - Formulaire */}
+            <Grid item xs={12} md={8}>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Nom du plat *"
+                    value={currentDish.name}
+                    onChange={(e) => setCurrentDish({...currentDish, name: e.target.value})}
+                    margin="normal"
+                    required
+                    helperText="Ce nom sera utilisé pour générer le nom de l'image"
+                  />
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Prix (€) *"
+                    type="number"
+                    value={currentDish.price}
+                    onChange={(e) => setCurrentDish({...currentDish, price: e.target.value})}
+                    margin="normal"
+                    required
+                    InputProps={{
+                      inputProps: { min: 0, step: 0.01 }
+                    }}
+                  />
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Temps de préparation"
+                    value={currentDish.prepTime}
+                    onChange={(e) => setCurrentDish({...currentDish, prepTime: e.target.value})}
+                    margin="normal"
+                    placeholder="ex: 15-20"
+                    helperText="Format: 15-20 (minutes)"
+                  />
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <FormControl fullWidth margin="normal">
+                    <InputLabel>Catégorie *</InputLabel>
+                    <Select
+                      value={currentDish.categoryId}
+                      onChange={(e) => setCurrentDish({...currentDish, categoryId: e.target.value})}
+                      label="Catégorie *"
+                      required
+                    >
+                      <MenuItem value="">Sélectionnez une catégorie</MenuItem>
+                      {categories.map(category => (
+                        <MenuItem key={category.id} value={category.id}>
+                          {category.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Description"
+                    value={currentDish.description}
+                    onChange={(e) => setCurrentDish({...currentDish, description: e.target.value})}
+                    margin="normal"
+                    multiline
+                    rows={3}
+                  />
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <FormControlLabel
+                    control={
+                      <Switch 
+                        checked={currentDish.isPopular}
+                        onChange={(e) => setCurrentDish({...currentDish, isPopular: e.target.checked})}
+                      />
+                    }
+                    label="Plat populaire"
+                  />
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <FormControlLabel
+                    control={
+                      <Switch 
+                        checked={currentDish.isNew}
+                        onChange={(e) => setCurrentDish({...currentDish, isNew: e.target.checked})}
+                      />
+                    }
+                    label="Nouveau plat"
+                  />
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Typography variant="body2">Note:</Typography>
+                    <Rating
+                      value={currentDish.rating}
+                      onChange={(event, newValue) => {
+                        setCurrentDish({...currentDish, rating: newValue});
+                      }}
+                      precision={0.5}
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      ({currentDish.rating}/5)
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
             </Grid>
           </Grid>
         </DialogContent>
@@ -664,13 +969,8 @@ const AdminMenu = () => {
           </Button>
           <Button 
             variant="contained"
-            onClick={() => {
-              // Logique pour sauvegarder
-              handleSubmit({
-                ...currentDish,
-                // Récupérer les valeurs du formulaire ici
-              });
-            }}
+            onClick={editMode ? handleUpdate : handleAdd}
+            disabled={!currentDish.name || !currentDish.price || !currentDish.categoryId}
           >
             {editMode ? "Mettre à jour" : "Créer"}
           </Button>
