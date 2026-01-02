@@ -13,3 +13,9 @@ frontend-darkkitchen/.env
 # OS
 .DS_Store
 Thumbs.db
+# Python
+venv/
+.env/
+__pycache__/
+*.pyc
+
