@@ -2,7 +2,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   Container, Box, Typography, Button, Grid, Card, CardContent,
-  CardMedia, Chip, Rating, CircularProgress, Alert
+  CardMedia, Chip, Rating, CircularProgress, Alert,
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  TextField, FormControlLabel, Checkbox, Snackbar
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
@@ -14,6 +16,28 @@ const Home = () => {
   const [featuredDishes, setFeaturedDishes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // États pour le popup de commande
+  const [openOrderDialog, setOpenOrderDialog] = useState(false);
+  const [selectedDish, setSelectedDish] = useState(null);
+  const [orderForm, setOrderForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    phoneNumber: '',
+    address: '',
+    city: '',
+    postalCode: '',
+    createAccount: true,
+    specialInstructions: ''
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
 
   useEffect(() => {
     const fetchFeaturedDishes = async () => {
@@ -33,9 +57,138 @@ const Home = () => {
     fetchFeaturedDishes();
   }, []);
 
+  // Fonction pour gérer le clic sur "Commander"
+  const handleOrderClick = (dish) => {
+    setSelectedDish(dish);
+    setOpenOrderDialog(true);
+  };
+
+  // Fonction pour gérer les changements dans le formulaire
+  const handleInputChange = (e) => {
+    const { name, value, checked, type } = e.target;
+    setOrderForm({
+      ...orderForm,
+      [name]: type === 'checkbox' ? checked : value
+    });
+  };
+
+  // Fonction pour soumettre la commande
+  const handleOrderSubmit = async () => {
+    // Validation basique
+    if (!orderForm.firstName || !orderForm.lastName || !orderForm.email || !orderForm.phoneNumber) {
+      setSnackbar({
+        open: true,
+        message: 'Veuillez remplir tous les champs obligatoires',
+        severity: 'error'
+      });
+      return;
+    }
+
+    if (orderForm.createAccount && !orderForm.password) {
+      setSnackbar({
+        open: true,
+        message: 'Veuillez créer un mot de passe pour votre compte',
+        severity: 'error'
+      });
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      // Structure de données pour l'API
+      const orderData = {
+        dishId: selectedDish.id,
+        clientInfo: {
+          firstName: orderForm.firstName,
+          lastName: orderForm.lastName,
+          email: orderForm.email,
+          password: orderForm.createAccount ? orderForm.password : null,
+          phoneNumber: orderForm.phoneNumber,
+          address: orderForm.address,
+          city: orderForm.city,
+          postalCode: orderForm.postalCode,
+          createAccount: orderForm.createAccount
+        },
+        specialInstructions: orderForm.specialInstructions,
+        quantity: 1 // Par défaut 1, pourrait être modifiable
+      };
+
+      // Appel API - À ADAPTER avec votre endpoint réel
+      const response = await fetch('http://localhost:8080/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(orderData)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        setSnackbar({
+          open: true,
+          message: `Commande passée avec succès ! Numéro de commande: ${result.orderNumber}`,
+          severity: 'success'
+        });
+        
+        // Réinitialiser le formulaire
+        setOrderForm({
+          firstName: '',
+          lastName: '',
+          email: '',
+          password: '',
+          phoneNumber: '',
+          address: '',
+          city: '',
+          postalCode: '',
+          createAccount: true,
+          specialInstructions: ''
+        });
+        
+        setOpenOrderDialog(false);
+        
+        // Redirection vers la page de confirmation ou espace client
+        // Si l'utilisateur a créé un compte, on pourrait le rediriger
+        if (orderForm.createAccount && result.token) {
+          // Stocker le token JWT
+          localStorage.setItem('token', result.token);
+          localStorage.setItem('client', JSON.stringify(result.client));
+        }
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Erreur lors de la commande');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la commande:', error);
+      setSnackbar({
+        open: true,
+        message: error.message || 'Une erreur est survenue. Veuillez réessayer.',
+        severity: 'error'
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Fonction pour fermer le popup
+  const handleCloseDialog = () => {
+    setOpenOrderDialog(false);
+    // Optionnel: réinitialiser partiellement le formulaire
+    setOrderForm({
+      ...orderForm,
+      specialInstructions: ''
+    });
+  };
+
+  // Fonction pour fermer le snackbar
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
+  };
+
   return (
     <Box>
-      {/* Hero Section (inchangée) */}
+      {/* Hero Section */}
       <Box sx={{ background: 'linear-gradient(135deg, #e91e63 0%, #ad1457 100%)', color: 'white', py: { xs: 8, md: 12 }, textAlign: 'center' }}>
         <Container maxWidth="lg">
           <Typography variant="h2" fontWeight="bold" gutterBottom>TasteLab</Typography>
@@ -171,8 +324,7 @@ const Home = () => {
                       variant="contained" 
                       fullWidth 
                       sx={{ mt: 2 }}
-                      component={Link}
-                      to={`/dish/${dish.id}`} // Lien vers la page détail du plat
+                      onClick={() => handleOrderClick(dish)}
                     >
                       Commander
                     </Button>
@@ -183,6 +335,226 @@ const Home = () => {
           </Grid>
         )}
       </Container>
+
+      {/* Dialog pour la commande */}
+      <Dialog 
+        open={openOrderDialog} 
+        onClose={handleCloseDialog}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: { maxHeight: '80vh' }
+        }}
+      >
+        <DialogTitle>
+          Commander {selectedDish?.name}
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedDish && (
+            <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Typography variant="h6" gutterBottom>Détails du plat</Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={8}>
+                  <Typography><strong>{selectedDish.name}</strong></Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {selectedDish.description}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Catégorie: {selectedDish.category?.name}
+                  </Typography>
+                </Grid>
+                <Grid item xs={4} textAlign="right">
+                  <Typography variant="h6" color="primary.main">
+                    {selectedDish.price}€
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Temps de préparation: {selectedDish.prepTime || '15 min'}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+          
+          <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+            Informations personnelles
+          </Typography>
+          
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                label="Prénom *"
+                name="firstName"
+                value={orderForm.firstName}
+                onChange={handleInputChange}
+                required
+                disabled={submitting}
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                label="Nom *"
+                name="lastName"
+                value={orderForm.lastName}
+                onChange={handleInputChange}
+                required
+                disabled={submitting}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Email *"
+                name="email"
+                type="email"
+                value={orderForm.email}
+                onChange={handleInputChange}
+                required
+                disabled={submitting}
+                helperText="Vous recevrez la confirmation de commande par email"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Téléphone *"
+                name="phoneNumber"
+                value={orderForm.phoneNumber}
+                onChange={handleInputChange}
+                required
+                disabled={submitting}
+                helperText="Pour la livraison"
+              />
+            </Grid>
+            
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    name="createAccount"
+                    checked={orderForm.createAccount}
+                    onChange={handleInputChange}
+                    disabled={submitting}
+                  />
+                }
+                label="Créer un compte pour suivre mes commandes"
+              />
+            </Grid>
+            
+            {orderForm.createAccount && (
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Mot de passe *"
+                  name="password"
+                  type="password"
+                  value={orderForm.password}
+                  onChange={handleInputChange}
+                  required
+                  disabled={submitting}
+                  helperText="Minimum 6 caractères"
+                />
+              </Grid>
+            )}
+          </Grid>
+          
+          <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+            Adresse de livraison
+          </Typography>
+          
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Adresse *"
+                name="address"
+                value={orderForm.address}
+                onChange={handleInputChange}
+                required
+                disabled={submitting}
+                placeholder="Numéro et rue"
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                label="Ville *"
+                name="city"
+                value={orderForm.city}
+                onChange={handleInputChange}
+                required
+                disabled={submitting}
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                label="Code postal *"
+                name="postalCode"
+                value={orderForm.postalCode}
+                onChange={handleInputChange}
+                required
+                disabled={submitting}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Instructions spéciales"
+                name="specialInstructions"
+                multiline
+                rows={3}
+                value={orderForm.specialInstructions}
+                onChange={handleInputChange}
+                disabled={submitting}
+                placeholder="Allergies, préférences alimentaires, code d'entrée, etc."
+              />
+            </Grid>
+          </Grid>
+          
+          <Alert severity="info" sx={{ mt: 3 }}>
+            <Typography variant="body2">
+              <strong>Livraison estimée:</strong> 25-30 minutes
+              <br />
+              <strong>Paiement:</strong> À la livraison (espèces ou carte)
+            </Typography>
+          </Alert>
+        </DialogContent>
+        
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button 
+            onClick={handleCloseDialog}
+            disabled={submitting}
+          >
+            Annuler
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={handleOrderSubmit}
+            disabled={submitting}
+            startIcon={submitting && <CircularProgress size={20} />}
+          >
+            {submitting ? 'Traitement...' : 'Confirmer la commande'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar pour les notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={handleCloseSnackbar} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

@@ -13,19 +13,36 @@ import {
   List,
   ListItem,
   ListItemText,
+  ListItemIcon,
   useMediaQuery,
   useTheme,
+  Menu,
+  MenuItem,
+  Avatar,
+  Divider
 } from '@mui/material';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import MenuIcon from '@mui/icons-material/Menu';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
+import PersonIcon from '@mui/icons-material/Person';
+import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import HistoryIcon from '@mui/icons-material/History';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import AuthService from '../../services/AuthService';
 
 const Header = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
   const location = useLocation();
+  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  const isAuthenticated = AuthService.isAuthenticated();
+  const isClient = AuthService.isClient();
+  const isAdmin = AuthService.isAdmin();
+  const currentUser = AuthService.getCurrentUser();
 
   const navItems = [
     { label: 'Accueil', path: '/' },
@@ -36,6 +53,30 @@ const Header = () => {
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
+  };
+
+  const handleMenuOpen = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = () => {
+    AuthService.logout();
+    handleMenuClose();
+    navigate('/');
+  };
+
+  const handleMyOrders = () => {
+    handleMenuClose();
+    navigate('/my-orders');
+  };
+
+  const handleDashboard = () => {
+    handleMenuClose();
+    navigate('/admin/dashboard');
   };
 
   const drawer = (
@@ -59,9 +100,61 @@ const Header = () => {
             <ListItemText primary={item.label} />
           </ListItem>
         ))}
-        <ListItem component={Link} to="/auth" sx={{ textDecoration: 'none' }}>
-          <ListItemText primary="Connexion" />
-        </ListItem>
+        
+        {isAuthenticated ? (
+          <>
+            {isClient && (
+              <ListItem 
+                component={Link} 
+                to="/my-orders"
+                sx={{ textDecoration: 'none', color: 'text.primary' }}
+              >
+                <ListItemIcon>
+                  <HistoryIcon />
+                </ListItemIcon>
+                <ListItemText primary="Mes Commandes" />
+              </ListItem>
+            )}
+            {isAdmin && (
+              <ListItem 
+                component={Link} 
+                to="/admin/dashboard"
+                sx={{ textDecoration: 'none', color: 'text.primary' }}
+              >
+                <ListItemIcon>
+                  <DashboardIcon />
+                </ListItemIcon>
+                <ListItemText primary="Tableau de bord" />
+              </ListItem>
+            )}
+            <Divider sx={{ my: 1 }} />
+            <ListItem 
+              button 
+              onClick={handleLogout}
+              sx={{ color: 'error.main' }}
+            >
+              <ListItemIcon sx={{ color: 'error.main' }}>
+                <ExitToAppIcon />
+              </ListItemIcon>
+              <ListItemText primary="Déconnexion" />
+            </ListItem>
+          </>
+        ) : (
+          <>
+            <ListItem component={Link} to="/auth" sx={{ textDecoration: 'none' }}>
+              <ListItemIcon>
+                <PersonIcon />
+              </ListItemIcon>
+              <ListItemText primary="Connexion Client" />
+            </ListItem>
+            <ListItem component={Link} to="/auth?type=admin" sx={{ textDecoration: 'none' }}>
+              <ListItemIcon>
+                <DashboardIcon />
+              </ListItemIcon>
+              <ListItemText primary="Connexion Personnel" />
+            </ListItem>
+          </>
+        )}
       </List>
     </Box>
   );
@@ -119,13 +212,73 @@ const Header = () => {
 
           {/* Actions */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <IconButton color="primary">
-              <Badge badgeContent={3} color="secondary">
-                <ShoppingCartIcon />
-              </Badge>
-            </IconButton>
+            {/* Panier (seulement pour les clients) */}
+           
             
-            {!isMobile ? (
+            {/* Authentification */}
+            {isAuthenticated ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <IconButton
+                  onClick={handleMenuOpen}
+                  sx={{ p: 0 }}
+                >
+                  <Avatar 
+                    sx={{ 
+                      bgcolor: 'primary.main',
+                      width: 36,
+                      height: 36,
+                      fontSize: 16
+                    }}
+                  >
+                    {currentUser?.firstName?.charAt(0) || currentUser?.email?.charAt(0) || 'U'}
+                  </Avatar>
+                </IconButton>
+                <Menu
+                  anchorEl={anchorEl}
+                  open={Boolean(anchorEl)}
+                  onClose={handleMenuClose}
+                  sx={{ mt: 1 }}
+                >
+                  <MenuItem disabled>
+                    <Box>
+                      <Typography variant="body2" fontWeight="bold">
+                        {isClient ? `${currentUser?.firstName} ${currentUser?.lastName}` : currentUser?.email}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {isClient ? 'Client' : 'Personnel'}
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                  <Divider />
+                  
+                  {isClient && (
+                    <MenuItem onClick={handleMyOrders}>
+                      <ListItemIcon>
+                        <HistoryIcon fontSize="small" />
+                      </ListItemIcon>
+                      Mes Commandes
+                    </MenuItem>
+                  )}
+                  
+                  {isAdmin && (
+                    <MenuItem onClick={handleDashboard}>
+                      <ListItemIcon>
+                        <DashboardIcon fontSize="small" />
+                      </ListItemIcon>
+                      Tableau de bord
+                    </MenuItem>
+                  )}
+                  
+                  <Divider />
+                  <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
+                    <ListItemIcon sx={{ color: 'error.main' }}>
+                      <ExitToAppIcon fontSize="small" />
+                    </ListItemIcon>
+                    Déconnexion
+                  </MenuItem>
+                </Menu>
+              </Box>
+            ) : !isMobile ? (
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Button 
                   variant="outlined" 
@@ -133,15 +286,15 @@ const Header = () => {
                   component={Link}
                   to="/auth"
                 >
-                  Connexion
+                  Connexion Client
                 </Button>
                 <Button 
                   variant="contained" 
                   color="primary"
                   component={Link}
-                  to="/auth?tab=register"
+                  to="/auth?type=admin"
                 >
-                  S'inscrire
+                  Personnel
                 </Button>
               </Box>
             ) : (
@@ -166,7 +319,7 @@ const Header = () => {
         ModalProps={{ keepMounted: true }}
         sx={{
           display: { xs: 'block', md: 'none' },
-          '& .MuiDrawer-paper': { boxSizing: 'border-box', width: 240 },
+          '& .MuiDrawer-paper': { boxSizing: 'border-box', width: 280 },
         }}
       >
         {drawer}
