@@ -18,17 +18,18 @@ public class User {
     private String fullName;
     private String phoneNumber;
     
-    private String role = "USER"; // Utiliser String au lieu d'Enum
+    @Enumerated(EnumType.STRING)
+    private UserRole role = UserRole.ADMIN; // Utiliser l'Enum
     
     // Constructeurs
     public User() {}
     
-    public User(String email, String password, String fullName, String phoneNumber) {
+    public User(String email, String password, String fullName, String phoneNumber, UserRole role) {
         this.email = email;
         this.password = password;
         this.fullName = fullName;
         this.phoneNumber = phoneNumber;
-        this.role = "USER";
+        this.role = role;
     }
     
     // Getters et Setters
@@ -72,11 +73,18 @@ public class User {
         this.phoneNumber = phoneNumber;
     }
     
-    public String getRole() {
+    public UserRole getRole() {
         return role;
     }
     
-    public void setRole(String role) {
+    public void setRole(UserRole role) {
         this.role = role;
+    }
+    
+    // Enum pour les rôles
+    public enum UserRole {
+        ADMIN,
+        CHEF,
+        DRIVER
     }
 }
