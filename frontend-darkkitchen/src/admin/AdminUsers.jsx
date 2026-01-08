@@ -1,3 +1,5 @@
+// src/pages/AdminUsers.js
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -26,21 +28,14 @@ import {
   Alert,
   Switch,
   FormControlLabel,
-  Badge,
   Tabs,
   Tab,
   Divider,
-  List,
-  ListItem,
-  ListItemAvatar,
-  ListItemText,
-  LinearProgress,
-  FormControl, // AJOUTÉ ICI
-  InputLabel // AJOUTÉ ICI si vous utilisez InputLabel
+  FormControl,
+  CircularProgress,
+  Snackbar,
+  InputAdornment
 } from "@mui/material";
-import { useState } from "react";
-
-// Icons
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import SaveIcon from "@mui/icons-material/Save";
@@ -53,195 +48,216 @@ import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import EmailIcon from "@mui/icons-material/Email";
 import PhoneIcon from "@mui/icons-material/Phone";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
-import WorkIcon from "@mui/icons-material/Work";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import PendingIcon from "@mui/icons-material/Pending";
 import WarningIcon from "@mui/icons-material/Warning";
-import LockIcon from "@mui/icons-material/Lock";
-import LockOpenIcon from "@mui/icons-material/LockOpen";
+import SearchIcon from "@mui/icons-material/Search";
+import RefreshIcon from "@mui/icons-material/Refresh";
 
 const roles = [
-  { value: "admin", label: "Administrateur", icon: <AdminPanelSettingsIcon />, color: "error" },
-  { value: "cuisinier", label: "Cuisinier", icon: <RestaurantIcon />, color: "warning" },
-  { value: "livreur", label: "Livreur", icon: <LocalShippingIcon />, color: "info" },
-  { value: "manager", label: "Manager", icon: <PersonIcon />, color: "success" }
+  { value: "ADMIN", label: "Administrateur", icon: <AdminPanelSettingsIcon />, color: "error" },
+  { value: "CHEF", label: "Cuisinier", icon: <RestaurantIcon />, color: "warning" },
+  { value: "DRIVER", label: "Livreur", icon: <LocalShippingIcon />, color: "info" }
 ];
 
 const statuses = [
-  { value: "actif", label: "Actif", color: "success" },
-  { value: "inactif", label: "Inactif", color: "default" },
-  { value: "conges", label: "Congés", color: "warning" }
+  { value: "ACTIF", label: "Actif", color: "success" },
+  { value: "INACTIF", label: "Inactif", color: "default" }
 ];
 
 const AdminUsers = () => {
-  const [users, setUsers] = useState([
-    { 
-      id: 1, 
-      name: "Mohamed Ali", 
-      email: "mohamed@darkkitchen.com",
-      phone: "+33 6 12 34 56 78",
-      role: "admin", 
-      status: "actif",
-      joinedDate: "2023-01-15",
-      lastLogin: "2024-01-15 14:30",
-      isActive: true,
-      permissions: ["dashboard", "menu", "orders", "users", "settings"],
-      avatarColor: "#1976d2"
-    },
-    { 
-      id: 2, 
-      name: "Ali Hassan", 
-      email: "ali@darkkitchen.com",
-      phone: "+33 6 23 45 67 89",
-      role: "cuisinier", 
-      status: "actif",
-      joinedDate: "2023-03-20",
-      lastLogin: "2024-01-15 12:45",
-      isActive: true,
-      permissions: ["kitchen", "orders"],
-      avatarColor: "#ff9800"
-    },
-    { 
-      id: 3, 
-      name: "Yassine Ben", 
-      email: "yassine@darkkitchen.com",
-      phone: "+33 6 34 56 78 90",
-      role: "livreur", 
-      status: "actif",
-      joinedDate: "2023-05-10",
-      lastLogin: "2024-01-15 15:20",
-      isActive: true,
-      permissions: ["delivery", "orders"],
-      avatarColor: "#2196f3"
-    },
-    { 
-      id: 4, 
-      name: "Sarah Martin", 
-      email: "sarah@darkkitchen.com",
-      phone: "+33 6 45 67 89 01",
-      role: "manager", 
-      status: "actif",
-      joinedDate: "2023-02-28",
-      lastLogin: "2024-01-15 09:15",
-      isActive: true,
-      permissions: ["dashboard", "orders", "analytics"],
-      avatarColor: "#4caf50"
-    },
-    { 
-      id: 5, 
-      name: "Thomas Dubois", 
-      email: "thomas@darkkitchen.com",
-      phone: "+33 6 56 78 90 12",
-      role: "cuisinier", 
-      status: "conges",
-      joinedDate: "2023-07-15",
-      lastLogin: "2024-01-10 18:30",
-      isActive: false,
-      permissions: ["kitchen"],
-      avatarColor: "#9c27b0"
-    }
-  ]);
-
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [editId, setEditId] = useState(null);
-  const [editValue, setEditValue] = useState({});
+  const [editData, setEditData] = useState({});
   const [newUser, setNewUser] = useState({ 
-    name: "", 
     email: "",
-    phone: "",
-    role: "cuisinier", 
-    status: "actif",
-    isActive: true
+    password: "",
+    fullName: "",
+    phoneNumber: "",
+    role: "CHEF"
   });
   const [deleteId, setDeleteId] = useState(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   const [showInactive, setShowInactive] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+  const [searchTerm, setSearchTerm] = useState("");
 
-  // Ajouter utilisateur
-  const handleAddUser = () => {
-    if (!newUser.name.trim() || !newUser.email.trim()) return;
-    
-    const userRole = roles.find(r => r.value === newUser.role);
-    
-    const newUserObj = {
-      ...newUser,
-      id: Date.now(),
-      joinedDate: new Date().toISOString().split('T')[0],
-      lastLogin: "Jamais",
-      permissions: getDefaultPermissions(newUser.role),
-      avatarColor: getRandomColor(),
-      isActive: newUser.status === "actif"
-    };
-    
-    setUsers([...users, newUserObj]);
-    setNewUser({ 
-      name: "", 
-      email: "",
-      phone: "",
-      role: "cuisinier", 
-      status: "actif",
-      isActive: true
-    });
-    setOpenDialog(false);
-  };
-
-  // Sauvegarder modification
-  const handleSave = () => {
-    setUsers(users.map(user => 
-      user.id === editId 
-        ? { 
-            ...user, 
-            ...editValue,
-            isActive: editValue.status === "actif"
-          } 
-        : user
-    ));
-    setEditId(null);
-  };
-
-  // Supprimer utilisateur
-  const handleDelete = () => {
-    setUsers(users.filter(user => user.id !== deleteId));
-    setDeleteId(null);
-  };
-
-  // Activer/désactiver utilisateur
-  const toggleUserStatus = (id) => {
-    setUsers(users.map(user => 
-      user.id === id 
-        ? { 
-            ...user, 
-            isActive: !user.isActive,
-            status: user.status === "actif" ? "inactif" : "actif"
-          } 
-        : user
-    ));
-  };
-
-  // Obtenir les permissions par défaut
-  const getDefaultPermissions = (role) => {
-    switch(role) {
-      case "admin":
-        return ["dashboard", "menu", "orders", "kitchen", "delivery", "users", "analytics", "settings"];
-      case "cuisinier":
-        return ["kitchen", "orders"];
-      case "livreur":
-        return ["delivery", "orders"];
-      case "manager":
-        return ["dashboard", "orders", "analytics", "menu"];
-      default:
-        return ["orders"];
+  // Récupérer les utilisateurs depuis l'API
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const userData = JSON.parse(localStorage.getItem('user') || '{}');
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch('http://localhost:8080/api/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Erreur lors de la récupération des utilisateurs');
+      }
+      
+      const data = await response.json();
+      setUsers(data);
+    } catch (error) {
+      console.error('Erreur:', error);
+      setSnackbar({
+        open: true,
+        message: 'Erreur lors du chargement des utilisateurs',
+        severity: 'error'
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Fonction utilitaire
-  const getRandomColor = () => {
-    const colors = [
-      "#1976d2", "#2e7d32", "#ed6c02", "#9c27b0", 
-      "#d32f2f", "#0288d1", "#7b1fa2", "#c2185b"
-    ];
-    return colors[Math.floor(Math.random() * colors.length)];
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  // Créer un nouvel utilisateur
+  const handleAddUser = async () => {
+    if (!newUser.email || !newUser.password || !newUser.fullName) {
+      setSnackbar({
+        open: true,
+        message: 'Veuillez remplir tous les champs obligatoires',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:8080/api/users', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newUser)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erreur lors de la création');
+      }
+
+      const data = await response.json();
+      setUsers([...users, data]);
+      setNewUser({ 
+        email: "",
+        password: "",
+        fullName: "",
+        phoneNumber: "",
+        role: "CHEF"
+      });
+      setOpenDialog(false);
+      setSnackbar({
+        open: true,
+        message: 'Utilisateur créé avec succès',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Erreur:', error);
+      setSnackbar({
+        open: true,
+        message: error.message,
+        severity: 'error'
+      });
+    }
   };
+
+  // Mettre à jour un utilisateur
+  const handleUpdateUser = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:8080/api/users/${editId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(editData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erreur lors de la modification');
+      }
+
+      const updatedUser = await response.json();
+      setUsers(users.map(user => user.id === editId ? updatedUser : user));
+      setEditId(null);
+      setSnackbar({
+        open: true,
+        message: 'Utilisateur modifié avec succès',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Erreur:', error);
+      setSnackbar({
+        open: true,
+        message: error.message,
+        severity: 'error'
+      });
+    }
+  };
+
+  // Supprimer un utilisateur
+  const handleDeleteUser = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:8080/api/users/${deleteId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erreur lors de la suppression');
+      }
+
+      setUsers(users.filter(user => user.id !== deleteId));
+      setDeleteId(null);
+      setSnackbar({
+        open: true,
+        message: 'Utilisateur supprimé avec succès',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Erreur:', error);
+      setSnackbar({
+        open: true,
+        message: error.message,
+        severity: 'error'
+      });
+    }
+  };
+
+  // Filtrer les utilisateurs
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = user.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (activeTab === 0) return matchesSearch;
+    if (activeTab === 1) return user.role === 'ADMIN' && matchesSearch;
+    if (activeTab === 2) return user.role === 'CHEF' && matchesSearch;
+    if (activeTab === 3) return user.role === 'DRIVER' && matchesSearch;
+    return matchesSearch;
+  });
+
+  const activeUsers = users.filter(user => user.role !== 'INACTIF').length;
+  const roleCounts = roles.reduce((acc, role) => {
+    acc[role.value] = users.filter(user => user.role === role.value).length;
+    return acc;
+  }, {});
 
   const getRoleIcon = (roleValue) => {
     const role = roles.find(r => r.value === roleValue);
@@ -253,20 +269,19 @@ const AdminUsers = () => {
     return role ? role.color : "default";
   };
 
-  const getStatusColor = (statusValue) => {
-    const status = statuses.find(s => s.value === statusValue);
-    return status ? status.color : "default";
+  const getAvatarColor = (name) => {
+    const colors = ["#1976d2", "#2e7d32", "#ed6c02", "#9c27b0", "#d32f2f", "#0288d1"];
+    const index = name?.charCodeAt(0) % colors.length || 0;
+    return colors[index];
   };
 
-  const filteredUsers = showInactive 
-    ? users 
-    : users.filter(user => user.status !== "inactif");
-
-  const activeUsers = users.filter(user => user.isActive).length;
-  const roleCounts = roles.reduce((acc, role) => {
-    acc[role.value] = users.filter(user => user.role === role.value).length;
-    return acc;
-  }, {});
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box>
@@ -274,10 +289,10 @@ const AdminUsers = () => {
       <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={4}>
         <Box>
           <Typography variant="h4" fontWeight="bold" gutterBottom>
-            👥 Gestion des utilisateurs
+            👥 Gestion des utilisateurs (Staff)
           </Typography>
           <Typography color="text.secondary">
-            Gérez les accès et rôles de votre équipe
+            Gérez les administrateurs, cuisiniers et livreurs
           </Typography>
         </Box>
         
@@ -298,13 +313,13 @@ const AdminUsers = () => {
             <Box display="flex" alignItems="center" justifyContent="space-between">
               <Box>
                 <Typography variant="caption" color="text.secondary">
-                  Utilisateurs actifs
+                  Total staff
                 </Typography>
                 <Typography variant="h5" fontWeight="bold">
-                  {activeUsers}/{users.length}
+                  {users.length}
                 </Typography>
               </Box>
-              <PersonIcon sx={{ color: 'success.main', fontSize: 40 }} />
+              <PersonIcon sx={{ color: 'primary.main', fontSize: 40 }} />
             </Box>
           </Paper>
         </Grid>
@@ -317,7 +332,7 @@ const AdminUsers = () => {
                   Administrateurs
                 </Typography>
                 <Typography variant="h5" fontWeight="bold">
-                  {roleCounts.admin || 0}
+                  {roleCounts.ADMIN || 0}
                 </Typography>
               </Box>
               <AdminPanelSettingsIcon sx={{ color: 'error.main', fontSize: 40 }} />
@@ -333,7 +348,7 @@ const AdminUsers = () => {
                   Cuisiniers
                 </Typography>
                 <Typography variant="h5" fontWeight="bold">
-                  {roleCounts.cuisinier || 0}
+                  {roleCounts.CHEF || 0}
                 </Typography>
               </Box>
               <RestaurantIcon sx={{ color: 'warning.main', fontSize: 40 }} />
@@ -349,7 +364,7 @@ const AdminUsers = () => {
                   Livreurs
                 </Typography>
                 <Typography variant="h5" fontWeight="bold">
-                  {roleCounts.livreur || 0}
+                  {roleCounts.DRIVER || 0}
                 </Typography>
               </Box>
               <LocalShippingIcon sx={{ color: 'info.main', fontSize: 40 }} />
@@ -358,34 +373,45 @@ const AdminUsers = () => {
         </Grid>
       </Grid>
 
-      {/* Filtres */}
+      {/* Barre de recherche et filtres */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={4}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={showInactive}
-                  onChange={(e) => setShowInactive(e.target.checked)}
-                />
-              }
-              label="Afficher les utilisateurs inactifs"
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              placeholder="Rechercher par nom ou email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
             />
           </Grid>
           
-          <Grid item xs={12} md={8}>
-            <Tabs 
-              value={activeTab} 
-              onChange={(e, newValue) => setActiveTab(newValue)}
-              variant="scrollable"
-              scrollButtons="auto"
-            >
-              <Tab label="Tous les utilisateurs" />
-              <Tab label="Administrateurs" />
-              <Tab label="Cuisiniers" />
-              <Tab label="Livreurs" />
-              <Tab label="En congés" />
-            </Tabs>
+          <Grid item xs={12} md={6}>
+            <Box display="flex" justifyContent="space-between" alignItems="center">
+              <Tabs 
+                value={activeTab} 
+                onChange={(e, newValue) => setActiveTab(newValue)}
+                variant="scrollable"
+                scrollButtons="auto"
+              >
+                <Tab label="Tous" />
+                <Tab label="Administrateurs" />
+                <Tab label="Cuisiniers" />
+                <Tab label="Livreurs" />
+              </Tabs>
+              
+              <Tooltip title="Actualiser">
+                <IconButton onClick={fetchUsers}>
+                  <RefreshIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
           </Grid>
         </Grid>
       </Paper>
@@ -398,146 +424,122 @@ const AdminUsers = () => {
               <TableRow>
                 <TableCell><Typography fontWeight="bold">Utilisateur</Typography></TableCell>
                 <TableCell><Typography fontWeight="bold">Rôle</Typography></TableCell>
-                <TableCell><Typography fontWeight="bold">Statut</Typography></TableCell>
                 <TableCell><Typography fontWeight="bold">Contact</Typography></TableCell>
-                <TableCell><Typography fontWeight="bold">Dernière connexion</Typography></TableCell>
+                <TableCell><Typography fontWeight="bold">Date de création</Typography></TableCell>
                 <TableCell align="center"><Typography fontWeight="bold">Actions</Typography></TableCell>
               </TableRow>
             </TableHead>
 
             <TableBody>
-              {filteredUsers.map((user) => (
-                <TableRow 
-                  key={user.id} 
-                  hover
-                  sx={{ opacity: user.isActive ? 1 : 0.7 }}
-                >
-                  {/* Informations utilisateur */}
-                  <TableCell>
-                    <Box display="flex" alignItems="center" gap={2}>
-                      <Avatar sx={{ bgcolor: user.avatarColor }}>
-                        {user.name.charAt(0)}
-                      </Avatar>
-                      <Box>
-                        <Typography fontWeight="bold">{user.name}</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          ID: {user.id}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </TableCell>
-                  
-                  {/* Rôle */}
-                  <TableCell>
-                    <Chip
-                      icon={getRoleIcon(user.role)}
-                      label={roles.find(r => r.value === user.role)?.label || user.role}
-                      color={getRoleColor(user.role)}
-                      size="small"
-                      variant="outlined"
-                    />
-                  </TableCell>
-                  
-                  {/* Statut */}
-                  <TableCell>
-                    <Box display="flex" alignItems="center" gap={1}>
-                      <Chip
-                        label={user.status}
-                        color={getStatusColor(user.status)}
-                        size="small"
-                      />
-                      <Tooltip title={user.isActive ? "Activer/Désactiver" : ""}>
-                        <IconButton
-                          size="small"
-                          onClick={() => toggleUserStatus(user.id)}
-                          color={user.isActive ? "success" : "default"}
-                        >
-                          {user.isActive ? <CheckCircleIcon /> : <PendingIcon />}
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </TableCell>
-                  
-                  {/* Contact */}
-                  <TableCell>
-                    <Box>
-                      <Box display="flex" alignItems="center" gap={0.5} mb={0.5}>
-                        <EmailIcon fontSize="small" color="action" />
-                        <Typography variant="body2">
-                          {user.email}
-                        </Typography>
-                      </Box>
-                      <Box display="flex" alignItems="center" gap={0.5}>
-                        <PhoneIcon fontSize="small" color="action" />
-                        <Typography variant="body2">
-                          {user.phone}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </TableCell>
-                  
-                  {/* Dernière connexion */}
-                  <TableCell>
-                    <Box>
-                      <Typography variant="body2">
-                        {user.lastLogin}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        <CalendarTodayIcon fontSize="inherit" sx={{ mr: 0.5 }} />
-                        Arrivé le {user.joinedDate}
-                      </Typography>
-                    </Box>
-                  </TableCell>
-                  
-                  {/* Actions */}
-                  <TableCell align="center">
-                    <Stack direction="row" spacing={1} justifyContent="center">
-                      <Tooltip title="Modifier">
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={() => {
-                            setEditId(user.id);
-                            setEditValue({ 
-                              name: user.name, 
-                              email: user.email,
-                              phone: user.phone,
-                              role: user.role, 
-                              status: user.status 
-                            });
-                          }}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      
-                      <Tooltip title="Supprimer">
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => setDeleteId(user.id)}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Stack>
+              {filteredUsers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                    <Typography color="text.secondary">
+                      Aucun utilisateur trouvé
+                    </Typography>
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filteredUsers.map((user) => (
+                  <TableRow key={user.id} hover>
+                    {/* Informations utilisateur */}
+                    <TableCell>
+                      <Box display="flex" alignItems="center" gap={2}>
+                        <Avatar sx={{ bgcolor: getAvatarColor(user.fullName) }}>
+                          {user.fullName?.charAt(0) || 'U'}
+                        </Avatar>
+                        <Box>
+                          <Typography fontWeight="bold">{user.fullName}</Typography>
+                          <Typography variant="caption" color="text.secondary" hidden>
+                            ID: {user.id}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </TableCell>
+                    
+                    {/* Rôle */}
+                    <TableCell>
+                      <Chip
+                        icon={getRoleIcon(user.role)}
+                        label={roles.find(r => r.value === user.role)?.label || user.role}
+                        color={getRoleColor(user.role)}
+                        size="small"
+                        variant="outlined"
+                      />
+                    </TableCell>
+                    
+                    {/* Contact */}
+                    <TableCell>
+                      <Box>
+                        <Box display="flex" alignItems="center" gap={0.5} mb={0.5}>
+                          <EmailIcon fontSize="small" color="action" />
+                          <Typography variant="body2">
+                            {user.email}
+                          </Typography>
+                        </Box>
+                        {user.phoneNumber && (
+                          <Box display="flex" alignItems="center" gap={0.5}>
+                            <PhoneIcon fontSize="small" color="action" />
+                            <Typography variant="body2">
+                              {user.phoneNumber}
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
+                    </TableCell>
+                    
+                    {/* Date (simulée) */}
+                    <TableCell>
+                      <Box display="flex" alignItems="center" gap={0.5}>
+                        <CalendarTodayIcon fontSize="small" color="action" />
+                        <Typography variant="body2">
+                          {new Date().toLocaleDateString('fr-FR')}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    
+                    {/* Actions */}
+                    <TableCell align="center">
+                      <Stack direction="row" spacing={1} justifyContent="center">
+                        <Tooltip title="Modifier">
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() => {
+                              setEditId(user.id);
+                              setEditData({ 
+                                fullName: user.fullName,
+                                email: user.email,
+                                phoneNumber: user.phoneNumber || '',
+                                role: user.role,
+                                password: '' // Champ vide pour la modification
+                              });
+                            }}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        
+                        <Tooltip title="Supprimer">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => setDeleteId(user.id)}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
-          
-          {filteredUsers.length === 0 && (
-            <Box py={4} textAlign="center">
-              <Typography color="text.secondary">
-                Aucun utilisateur trouvé
-              </Typography>
-            </Box>
-          )}
         </CardContent>
       </Card>
 
-      {/* Édition en ligne */}
+      {/* Dialogue de modification */}
       {editId && (
         <Card sx={{ mt: 3, border: '2px solid', borderColor: 'primary.main' }}>
           <CardContent>
@@ -551,42 +553,47 @@ const AdminUsers = () => {
             </Box>
             
             <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Nom complet"
-                  value={editValue.name}
-                  onChange={(e) => setEditValue({...editValue, name: e.target.value})}
-                />
-              </Grid>
-              
-              <Grid item xs={12} md={4}>
-                <TextField
-                  fullWidth
-                  label="Email"
-                  type="email"
-                  value={editValue.email}
-                  onChange={(e) => setEditValue({...editValue, email: e.target.value})}
-                />
-              </Grid>
-              
-              <Grid item xs={12} md={4}>
-                <TextField
-                  fullWidth
-                  label="Téléphone"
-                  value={editValue.phone}
-                  onChange={(e) => setEditValue({...editValue, phone: e.target.value})}
+                  label="Nom complet *"
+                  value={editData.fullName || ''}
+                  onChange={(e) => setEditData({...editData, fullName: e.target.value})}
+                  margin="normal"
+                  required
                 />
               </Grid>
               
               <Grid item xs={12} md={6}>
-                <FormControl fullWidth>
+                <TextField
+                  fullWidth
+                  label="Email *"
+                  type="email"
+                  value={editData.email || ''}
+                  onChange={(e) => setEditData({...editData, email: e.target.value})}
+                  margin="normal"
+                  required
+                />
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Téléphone"
+                  value={editData.phoneNumber || ''}
+                  onChange={(e) => setEditData({...editData, phoneNumber: e.target.value})}
+                  margin="normal"
+                />
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth margin="normal">
                   <Typography variant="caption" color="text.secondary" gutterBottom>
-                    Rôle
+                    Rôle *
                   </Typography>
                   <Select
-                    value={editValue.role}
-                    onChange={(e) => setEditValue({...editValue, role: e.target.value})}
+                    value={editData.role || 'CHEF'}
+                    onChange={(e) => setEditData({...editData, role: e.target.value})}
                   >
                     {roles.map((role) => (
                       <MenuItem key={role.value} value={role.value}>
@@ -600,22 +607,16 @@ const AdminUsers = () => {
                 </FormControl>
               </Grid>
               
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth>
-                  <Typography variant="caption" color="text.secondary" gutterBottom>
-                    Statut
-                  </Typography>
-                  <Select
-                    value={editValue.status}
-                    onChange={(e) => setEditValue({...editValue, status: e.target.value})}
-                  >
-                    {statuses.map((status) => (
-                      <MenuItem key={status.value} value={status.value}>
-                        <Chip label={status.label} size="small" color={status.color} />
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Nouveau mot de passe (laisser vide pour ne pas changer)"
+                  type="password"
+                  value={editData.password || ''}
+                  onChange={(e) => setEditData({...editData, password: e.target.value})}
+                  margin="normal"
+                  helperText="Minimum 6 caractères"
+                />
               </Grid>
             </Grid>
             
@@ -623,7 +624,7 @@ const AdminUsers = () => {
               <Button onClick={() => setEditId(null)} variant="outlined">
                 Annuler
               </Button>
-              <Button onClick={handleSave} variant="contained" startIcon={<SaveIcon />}>
+              <Button onClick={handleUpdateUser} variant="contained" startIcon={<SaveIcon />}>
                 Sauvegarder
               </Button>
             </Box>
@@ -635,16 +636,16 @@ const AdminUsers = () => {
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
           <AddIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-          Nouvel utilisateur
+          Nouvel utilisateur (Staff)
         </DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2}>
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="Nom complet"
-                value={newUser.name}
-                onChange={(e) => setNewUser({...newUser, name: e.target.value})}
+                label="Nom complet *"
+                value={newUser.fullName}
+                onChange={(e) => setNewUser({...newUser, fullName: e.target.value})}
                 margin="normal"
                 required
               />
@@ -653,7 +654,7 @@ const AdminUsers = () => {
             <Grid item xs={12}>
               <TextField
                 fullWidth
-                label="Email"
+                label="Email *"
                 type="email"
                 value={newUser.email}
                 onChange={(e) => setNewUser({...newUser, email: e.target.value})}
@@ -665,17 +666,30 @@ const AdminUsers = () => {
             <Grid item xs={12}>
               <TextField
                 fullWidth
+                label="Mot de passe *"
+                type="password"
+                value={newUser.password}
+                onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                margin="normal"
+                required
+                helperText="Minimum 6 caractères"
+              />
+            </Grid>
+            
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
                 label="Téléphone"
-                value={newUser.phone}
-                onChange={(e) => setNewUser({...newUser, phone: e.target.value})}
+                value={newUser.phoneNumber}
+                onChange={(e) => setNewUser({...newUser, phoneNumber: e.target.value})}
                 margin="normal"
               />
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12}>
               <FormControl fullWidth margin="normal">
                 <Typography variant="caption" color="text.secondary" gutterBottom>
-                  Rôle
+                  Rôle *
                 </Typography>
                 <Select
                   value={newUser.role}
@@ -693,28 +707,10 @@ const AdminUsers = () => {
               </FormControl>
             </Grid>
             
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth margin="normal">
-                <Typography variant="caption" color="text.secondary" gutterBottom>
-                  Statut
-                </Typography>
-                <Select
-                  value={newUser.status}
-                  onChange={(e) => setNewUser({...newUser, status: e.target.value})}
-                >
-                  {statuses.map((status) => (
-                    <MenuItem key={status.value} value={status.value}>
-                      <Chip label={status.label} size="small" color={status.color} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            
             <Grid item xs={12}>
               <Alert severity="info" sx={{ mt: 2 }}>
                 <Typography variant="body2">
-                  Un email d'invitation sera envoyé à l'utilisateur avec ses identifiants de connexion.
+                  Cet utilisateur pourra se connecter immédiatement avec ces identifiants.
                 </Typography>
               </Alert>
             </Grid>
@@ -727,7 +723,7 @@ const AdminUsers = () => {
           <Button 
             variant="contained" 
             onClick={handleAddUser}
-            disabled={!newUser.name.trim() || !newUser.email.trim()}
+            disabled={!newUser.fullName || !newUser.email || !newUser.password}
           >
             Créer l'utilisateur
           </Button>
@@ -745,15 +741,15 @@ const AdminUsers = () => {
         </DialogTitle>
         <DialogContent>
           <Typography gutterBottom>
-            Êtes-vous sûr de vouloir supprimer l'utilisateur <strong>{users.find(u => u.id === deleteId)?.name}</strong> ?
+            Êtes-vous sûr de vouloir supprimer l'utilisateur ?
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Cette action est irréversible. L'utilisateur perdra immédiatement l'accès à toutes les fonctionnalités.
+            Cette action est irréversible. L'utilisateur perdra immédiatement l'accès.
           </Typography>
           
-          {users.find(u => u.id === deleteId)?.role === "admin" && (
+          {users.find(u => u.id === deleteId)?.role === "ADMIN" && (
             <Alert severity="warning" sx={{ mt: 2 }}>
-              ⚠️ Cet utilisateur est administrateur. Assurez-vous qu'il reste au moins un autre administrateur.
+              ⚠️ Cet utilisateur est administrateur.
             </Alert>
           )}
         </DialogContent>
@@ -764,7 +760,7 @@ const AdminUsers = () => {
           <Button 
             color="error" 
             variant="contained" 
-            onClick={handleDelete}
+            onClick={handleDeleteUser}
             startIcon={<DeleteIcon />}
           >
             Supprimer définitivement
@@ -775,31 +771,43 @@ const AdminUsers = () => {
       {/* Guide des rôles */}
       <Paper sx={{ p: 3, mt: 4, bgcolor: 'grey.50' }}>
         <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-          📋 Guide des rôles et permissions
+          📋 Rôles disponibles
         </Typography>
         <Grid container spacing={2}>
           {roles.map((role) => (
-            <Grid item xs={12} sm={6} md={3} key={role.value}>
+            <Grid item xs={12} sm={4} key={role.value}>
               <Paper sx={{ p: 2, height: '100%' }}>
                 <Box display="flex" alignItems="center" gap={1} mb={1}>
                   {role.icon}
                   <Typography fontWeight="bold">{role.label}</Typography>
                 </Box>
-                <Typography variant="caption" color="text.secondary">
-                  {getDefaultPermissions(role.value).length} permissions
-                </Typography>
                 <Divider sx={{ my: 1 }} />
                 <Typography variant="body2">
-                  {role.value === "admin" && "Accès complet à toutes les fonctionnalités"}
-                  {role.value === "cuisinier" && "Gestion cuisine et préparation des commandes"}
-                  {role.value === "livreur" && "Gestion des livraisons et suivi"}
-                  {role.value === "manager" && "Tableau de bord et analytics"}
+                  {role.value === "ADMIN" && "Accès complet à toutes les fonctionnalités"}
+                  {role.value === "CHEF" && "Gestion de la cuisine et préparation des commandes"}
+                  {role.value === "DRIVER" && "Gestion des livraisons et suivi"}
                 </Typography>
               </Paper>
             </Grid>
           ))}
         </Grid>
       </Paper>
+
+      {/* Snackbar pour les notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
