@@ -592,6 +592,176 @@ export const orderService = {
       throw error;
     }
   }
+
+  ,// Dans orderService.js, corrigez ces deux méthodes :
+getAllOrders: async () => {
+  try {
+    const user = authService.getCurrentUser();
+    console.log('User in getAllOrders:', user);
+    
+    if (!user) {
+      throw new Error('Veuillez vous connecter');
+    }
+    
+    // Vérifier si c'est un admin/staff (simplifié)
+    const isStaff = user.role && ['ADMIN', 'CHEF', 'DRIVER', 'admin', 'chef', 'driver'].includes(user.role);
+    
+    if (!isStaff) {
+      throw new Error('Accès réservé aux administrateurs');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/orders/admin/all`, {
+      headers: {
+        'Content-Type': 'application/json',
+        // Pas besoin de token si votre backend ne l'utilise pas
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Erreur API getAllOrders:', response.status, errorText);
+      throw new Error(`Erreur ${response.status}: ${errorText || 'Impossible de récupérer les commandes'}`);
+    }
+    
+    const data = await response.json();
+    console.log('API Response getAllOrders:', data);
+    
+    // Votre backend retourne {success: true, orders: [...]}
+    return data.orders || [];
+    
+  } catch (error) {
+    console.error('Erreur getAllOrders:', error);
+    throw error;
+  }
+},
+
+updateOrderStatus: async (orderId, status, updatedBy = 'admin') => {
+  try {
+    const user = authService.getCurrentUser();
+    if (!user) {
+      throw new Error('Non authentifié');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}/update-status`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ 
+        status: status,
+        updatedBy: updatedBy
+      })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Erreur ${response.status}: ${errorText || 'Erreur lors de la mise à jour'}`);
+    }
+    
+    const data = await response.json();
+    console.log('updateOrderStatus response:', data);
+    
+    return data.order || data;
+    
+  } catch (error) {
+    console.error('Erreur updateOrderStatus:', error);
+    throw error;
+  }
+},
+
+// Ajoutez cette méthode pour les statistiques
+getOrdersByStatus: async (status) => {
+  try {
+    const user = authService.getCurrentUser();
+    if (!user) {
+      throw new Error('Non authentifié');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/orders/by-status/${status}`, {
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Erreur ${response.status}: ${errorText || 'Erreur lors de la récupération'}`);
+    }
+    
+    const data = await response.json();
+    return data.orders || [];
+    
+  } catch (error) {
+    console.error('Erreur getOrdersByStatus:', error);
+    throw error;
+  }
+},
+// Ajoutez ces méthodes dans orderService
+getPendingOrdersForChef: async () => {
+  try {
+    const user = authService.getCurrentUser();
+    if (!user || !['CHEF', 'chef', 'ADMIN', 'admin'].includes(user.role)) {
+      throw new Error('Accès non autorisé');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/orders/chef/pending`, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Erreur lors de la récupération des commandes');
+    }
+    
+    const data = await response.json();
+    return data.orders || [];
+  } catch (error) {
+    console.error('Erreur:', error);
+    throw error;
+  }
+},
+
+getReadyOrdersForDelivery: async () => {
+  try {
+    const user = authService.getCurrentUser();
+    if (!user || !['DRIVER', 'driver', 'ADMIN', 'admin'].includes(user.role)) {
+      throw new Error('Accès non autorisé');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/orders/delivery/ready`, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Erreur lors de la récupération des commandes');
+    }
+    
+    const data = await response.json();
+    return data.orders || [];
+  } catch (error) {
+    console.error('Erreur:', error);
+    throw error;
+  }
+},
+
+// Méthode pour envoyer une notification
+sendNotification: async (orderId, notificationType, message) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: notificationType, message })
+    });
+    
+    if (!response.ok) {
+      throw new Error('Erreur lors de l\'envoi de la notification');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Erreur:', error);
+    throw error;
+  }
+}
 };
 
 

@@ -1,12 +1,14 @@
 package com.example.backend_darkitchen.Controller;
 
 import com.example.backend_darkitchen.entity.Client;
+import com.example.backend_darkitchen.entity.Order;
 import com.example.backend_darkitchen.Repository.ClientRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -178,6 +180,51 @@ public ResponseEntity<?> changePassword(
         "message", "Mot de passe modifié avec succès",
         "client", updatedClient
     ));
+}
+
+
+// Dans ClientController.java, ajoutez cette méthode :
+@GetMapping("/{id}/stats")
+public ResponseEntity<?> getClientStats(@PathVariable Long id) {
+    Optional<Client> optionalClient = clientRepository.findById(id);
+    
+    if (!optionalClient.isPresent()) {
+        return ResponseEntity.notFound().build();
+    }
+    
+    Client client = optionalClient.get();
+    
+    // Récupérer le nombre de commandes pour ce client
+    long orderCount = client.getOrders() != null ? client.getOrders().size() : 0;
+    
+    // Calculer le montant total dépensé
+    double totalSpent = 0.0;
+    if (client.getOrders() != null) {
+        totalSpent = client.getOrders().stream()
+            .filter(order -> order.getTotalAmount() != null)
+            .mapToDouble(Order::getTotalAmount)
+            .sum();
+    }
+    
+    return ResponseEntity.ok(Map.of(
+        "clientId", id,
+        "fullName", client.getFullName(),
+        "orderCount", orderCount,
+        "totalSpent", totalSpent,
+        "registrationDate", client.getRegistrationDate(),
+        "lastOrderDate", getLastOrderDate(client),
+        "active", client.isActive()
+    ));
+}
+
+private LocalDateTime getLastOrderDate(Client client) {
+    if (client.getOrders() == null || client.getOrders().isEmpty()) {
+        return null;
+    }
+    return client.getOrders().stream()
+        .map(Order::getOrderDate)
+        .max(LocalDateTime::compareTo)
+        .orElse(null);
 }
 
 }

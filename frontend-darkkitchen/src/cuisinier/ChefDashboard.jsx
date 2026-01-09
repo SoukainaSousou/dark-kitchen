@@ -1,3 +1,5 @@
+// src/pages/ChefDashboard.js
+import React, { useEffect, useState } from 'react';
 import {
   Grid,
   Card,
@@ -6,468 +8,564 @@ import {
   Box,
   Paper,
   LinearProgress,
-  Chip,
-  Avatar,
-  Stack,
-  IconButton,
+  CircularProgress,
   Alert,
+  Chip,
+  Stack,
   Button,
-  Badge
+  IconButton
 } from "@mui/material";
 import {
-  AccessTime,
   Restaurant,
   LocalFireDepartment,
   CheckCircle,
-  Warning,
-  Timer,
-  Speed,
+  AccessTime,
   TrendingUp,
   TrendingDown,
-  Notifications,
+  Refresh,
+  Timer,
   Kitchen,
-  Inventory,
-  Refresh
+  EmojiEvents,
+  RestaurantMenu,
+  HourglassEmpty
 } from "@mui/icons-material";
-import { useState, useEffect } from "react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { orderService } from '../services/api';
 
-const StatCard = ({ title, value, icon, color = "warning", change, unit = "" }) => (
-  <Card sx={{ height: "100%", boxShadow: 2, borderLeft: `4px solid ${color}` }}>
-    <CardContent>
-      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-        <Box>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            {title}
-          </Typography>
-          <Typography variant="h3" fontWeight="bold" color="text.primary">
-            {value}{unit}
-          </Typography>
-          {change && (
-            <Box display="flex" alignItems="center" mt={1}>
-              {change > 0 ? (
-                <TrendingUp sx={{ color: "success.main", fontSize: 16 }} />
-              ) : (
-                <TrendingDown sx={{ color: "error.main", fontSize: 16 }} />
-              )}
-              <Typography
-                variant="caption"
-                sx={{
-                  color: change > 0 ? "success.main" : "error.main",
-                  ml: 0.5,
-                  fontWeight: 'medium'
-                }}
-              >
-                {change > 0 ? "+" : ""}{change}%
-              </Typography>
-            </Box>
-          )}
-        </Box>
-        <Box
-          sx={{
-            bgcolor: `${color}20`,
-            p: 1.5,
-            borderRadius: 2,
-            color: color
-          }}
-        >
-          {icon}
-        </Box>
-      </Box>
-    </CardContent>
-  </Card>
-);
-
-const ChefOrdersList = () => {
-  const orders = [
-    { id: 1023, client: "Karim", items: ["Burger x2", "Frites"], time: 12, priority: "urgent", status: "en préparation" },
-    { id: 1024, client: "Sarah", items: ["Salade César"], time: 8, priority: "normal", status: "en attente" },
-    { id: 1025, client: "Thomas", items: ["Pizza x1", "Coca"], time: 18, priority: "urgent", status: "en préparation" },
-    { id: 1026, client: "Marie", items: ["Pasta"], time: 5, priority: "normal", status: "prêt" },
-    { id: 1027, client: "Jean", items: ["Sandwich", "Chips"], time: 6, priority: "normal", status: "en attente" },
-  ];
-
-  const getPriorityColor = (priority) => {
-    return priority === "urgent" ? "error" : "default";
-  };
-
-  const getStatusColor = (status) => {
-    switch(status) {
-      case "en préparation": return "warning";
-      case "prêt": return "success";
-      default: return "default";
-    }
+const StatCard = ({ title, value, change, icon, color = "warning", loading = false }) => {
+  const colorMap = {
+    warning: "#ed6c02",
+    error: "#d32f2f",
+    success: "#2e7d32",
+    info: "#0288d1",
+    primary: "#1976d2"
   };
 
   return (
-    <Card sx={{ height: "100%", boxShadow: 2 }}>
+    <Card sx={{ 
+      height: "100%", 
+      boxShadow: 2,
+      borderRadius: 3,
+      borderLeft: `4px solid ${colorMap[color]}`,
+      transition: 'transform 0.2s',
+      '&:hover': {
+        transform: 'translateY(-2px)'
+      }
+    }}>
       <CardContent>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Typography variant="h6" fontWeight="bold">
-            🚨 Commandes en attente
-          </Typography>
-          <Badge badgeContent={3} color="error">
-            <LocalFireDepartment color="error" />
-          </Badge>
-        </Box>
-        
-        <Box>
-          {orders.map((order) => (
-            <Paper
-              key={order.id}
-              sx={{
-                p: 2,
-                mb: 1.5,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                bgcolor: order.priority === "urgent" ? "#FFEBEE" : "transparent",
-                borderLeft: order.priority === "urgent" ? "4px solid #F44336" : "none"
-              }}
-            >
-              <Box>
-                <Box display="flex" alignItems="center" gap={1} mb={1}>
-                  <Typography fontWeight="bold">#{order.id}</Typography>
-                  <Chip
-                    label={order.priority}
-                    color={getPriorityColor(order.priority)}
-                    size="small"
-                  />
-                  <Chip
-                    label={order.status}
-                    color={getStatusColor(order.status)}
-                    size="small"
-                  />
-                </Box>
-                <Typography variant="body2" color="text.secondary">
-                  {order.client} • {order.items.join(", ")}
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+          <Box>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              {title}
+            </Typography>
+            {loading ? (
+              <Box display="flex" alignItems="center" height={40}>
+                <CircularProgress size={20} />
+              </Box>
+            ) : (
+              <>
+                <Typography variant="h4" fontWeight="bold" color="text.primary">
+                  {value}
                 </Typography>
-              </Box>
-              
-              <Box display="flex" alignItems="center" gap={2}>
-                <Box display="flex" alignItems="center" gap={0.5}>
-                  <AccessTime fontSize="small" color="action" />
-                  <Typography fontWeight="bold">{order.time}min</Typography>
-                </Box>
-                <Button size="small" variant="contained" color="warning">
-                  Démarrer
-                </Button>
-              </Box>
-            </Paper>
-          ))}
+                {change !== undefined && (
+                  <Box display="flex" alignItems="center" mt={1}>
+                    {change > 0 ? (
+                      <TrendingUp sx={{ color: "success.main", fontSize: 16 }} />
+                    ) : (
+                      <TrendingDown sx={{ color: "error.main", fontSize: 16 }} />
+                    )}
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: change > 0 ? "success.main" : "error.main",
+                        ml: 0.5,
+                        fontWeight: 'medium'
+                      }}
+                    >
+                      {change > 0 ? "+" : ""}{change}%
+                    </Typography>
+                  </Box>
+                )}
+              </>
+            )}
+          </Box>
+          <Box
+            sx={{
+              bgcolor: `${colorMap[color]}15`,
+              p: 1.5,
+              borderRadius: 2,
+              color: colorMap[color]
+            }}
+          >
+            {icon}
+          </Box>
         </Box>
       </CardContent>
     </Card>
   );
 };
 
-const ChefTimer = () => {
-  const [timer, setTimer] = useState(0);
-  
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimer(prev => prev + 1);
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, []);
+const OrdersStatusChart = ({ orders = [], loading = false }) => {
+  const getStatusData = () => {
+    const statusCounts = {
+      'EN_ATTENTE': { name: "En attente", color: "#ff9800", count: 0 },
+      'EN_PREPARATION': { name: "En préparation", color: "#2196f3", count: 0 },
+      'PRET': { name: "Prêtes", color: "#4caf50", count: 0 },
+      'EN_LIVRAISON': { name: "En livraison", color: "#9c27b0", count: 0 },
+      'LIVRE': { name: "Livrées", color: "#00bcd4", count: 0 },
+      'ANNULE': { name: "Annulées", color: "#757575", count: 0 }
+    };
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    orders.forEach(order => {
+      if (order.status && statusCounts[order.status]) {
+        statusCounts[order.status].count++;
+      }
+    });
+
+    return Object.values(statusCounts);
   };
 
+  const chartData = getStatusData();
+  const totalOrders = chartData.reduce((sum, item) => sum + item.count, 0);
+
+  if (loading) {
+    return (
+      <Card sx={{ height: "100%", boxShadow: 2, borderRadius: 3 }}>
+        <CardContent sx={{ textAlign: 'center', py: 4 }}>
+          <CircularProgress />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <Card sx={{ height: "100%", boxShadow: 2, bgcolor: "#FFF3E0" }}>
+    <Card sx={{ height: "100%", boxShadow: 2, borderRadius: 3 }}>
       <CardContent>
-        <Typography variant="h6" fontWeight="bold" gutterBottom>
-          ⏱️ Timer actif
-        </Typography>
-        
-        <Box textAlign="center" my={4}>
-          <Typography variant="h1" fontWeight="bold" color="warning.dark">
-            {formatTime(timer)}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Commande #1023 - Burger Deluxe
-          </Typography>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Box>
+            <Typography variant="h6" fontWeight="bold" gutterBottom>
+              📊 Statut des commandes
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Total: {totalOrders} commandes
+            </Typography>
+          </Box>
+          <Restaurant sx={{ fontSize: 40, color: 'warning.main' }} />
         </Box>
-        
-        <Stack direction="row" spacing={2} justifyContent="center">
-          <Button variant="contained" color="warning" startIcon={<Timer />}>
-            Pause
-          </Button>
-          <Button variant="outlined" color="success" startIcon={<CheckCircle />}>
-            Terminé
-          </Button>
-        </Stack>
-      </CardContent>
-    </Card>
-  );
-};
 
-const KitchenPerformance = () => {
-  const performanceData = [
-    { label: "Préparation", value: 85, color: "#4CAF50" },
-    { label: "Qualité", value: 92, color: "#2196F3" },
-    { label: "Ponctualité", value: 78, color: "#FF9800" },
-    { label: "Équipe", value: 88, color: "#9C27B0" },
-  ];
+        {totalOrders === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+            Aucune commande en cuisine
+          </Typography>
+        ) : (
+          <Box sx={{ height: 250 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="count"
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  formatter={(value, name, props) => [
+                    `${value} commandes`,
+                    props.payload.name
+                  ]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </Box>
+        )}
 
-  return (
-    <Card sx={{ height: "100%", boxShadow: 2 }}>
-      <CardContent>
-        <Typography variant="h6" fontWeight="bold" gutterBottom>
-          📊 Performance cuisine
-        </Typography>
-        
         <Box mt={3}>
-          {performanceData.map((item, index) => (
-            <Box key={index} mb={3}>
-              <Box display="flex" justifyContent="space-between" mb={1}>
-                <Typography variant="body2">{item.label}</Typography>
+          {chartData.map((item, index) => (
+            <Box key={index} mb={2}>
+              <Box display="flex" justifyContent="space-between" mb={0.5}>
+                <Box display="flex" alignItems="center">
+                  <Box
+                    sx={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      backgroundColor: item.color,
+                      mr: 1
+                    }}
+                  />
+                  <Typography variant="body2">{item.name}</Typography>
+                </Box>
                 <Typography variant="body2" fontWeight="bold">
-                  {item.value}%
+                  {item.count}
                 </Typography>
               </Box>
               <LinearProgress
                 variant="determinate"
-                value={item.value}
+                value={totalOrders > 0 ? (item.count / totalOrders) * 100 : 0}
                 sx={{
-                  height: 10,
-                  borderRadius: 5,
+                  height: 6,
+                  borderRadius: 3,
                   backgroundColor: `${item.color}20`,
                   "& .MuiLinearProgress-bar": {
                     backgroundColor: item.color,
-                    borderRadius: 5,
+                    borderRadius: 3,
                   },
                 }}
               />
             </Box>
           ))}
         </Box>
-        
-        <Paper sx={{ p: 2, mt: 3, bgcolor: "#F5F5F5" }}>
-          <Typography variant="body2" fontWeight="bold" gutterBottom>
-            Objectif du jour
-          </Typography>
-          <Box display="flex" alignItems="center" justifyContent="space-between">
-            <Typography variant="h4">25/30</Typography>
-            <Typography variant="caption" color="text.secondary">
-              plats préparés
-            </Typography>
-          </Box>
-        </Paper>
       </CardContent>
     </Card>
   );
 };
 
-const StockAlert = () => {
-  const lowStockItems = [
-    { item: "Steak haché", remaining: "3kg", needed: "10kg", critical: true },
-    { item: "Pain burger", remaining: "12", needed: "50", critical: true },
-    { item: "Fromage", remaining: "2kg", needed: "5kg", critical: false },
-    { item: "Salade", remaining: "1kg", needed: "3kg", critical: false },
-  ];
+const UrgentOrdersList = ({ orders = [], loading = false, onUpdateStatus }) => {
+  // Commandes en attente + en préparation = urgentes pour le chef
+  const urgentOrders = orders
+    .filter(order => order.status === 'EN_ATTENTE' || order.status === 'EN_PREPARATION')
+    .slice(0, 5);
+
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'EN_ATTENTE': return "#ff9800";
+      case 'EN_PREPARATION': return "#2196f3";
+      case 'PRET': return "#4caf50";
+      default: return "#757575";
+    }
+  };
+
+  const getStatusLabel = (status) => {
+    switch(status) {
+      case 'EN_ATTENTE': return "En attente";
+      case 'EN_PREPARATION': return "En préparation";
+      case 'PRET': return "Prête";
+      default: return status;
+    }
+  };
+
+  const handleStartPreparation = async (orderId) => {
+    try {
+      await orderService.updateOrderStatus(orderId, 'EN_PREPARATION', 'chef');
+      onUpdateStatus(); // Rafraîchir les données
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
+  };
+
+  const handleMarkAsReady = async (orderId) => {
+    try {
+      await orderService.updateOrderStatus(orderId, 'PRET', 'chef');
+      onUpdateStatus(); // Rafraîchir les données
+    } catch (error) {
+      console.error('Erreur:', error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card sx={{ height: "100%", boxShadow: 2, borderRadius: 3 }}>
+        <CardContent sx={{ textAlign: 'center', py: 4 }}>
+          <CircularProgress />
+        </CardContent>
+      </Card>
+    );
+  }
+
+ 
+};
+
+const RecentOrdersTable = ({ orders = [], loading = false }) => {
+  const recentOrders = orders.slice(0, 4);
+
+  if (loading) {
+    return (
+      <Card sx={{ height: "100%", boxShadow: 2, borderRadius: 3 }}>
+        <CardContent sx={{ textAlign: 'center', py: 4 }}>
+          <CircularProgress />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <Card sx={{ height: "100%", boxShadow: 2, border: "2px solid #FF9800" }}>
+    <Card sx={{ height: "100%", boxShadow: 2, borderRadius: 3 }}>
       <CardContent>
-        <Box display="flex" alignItems="center" gap={1} mb={2}>
-          <Warning color="warning" />
-          <Typography variant="h6" fontWeight="bold" color="warning.dark">
-            ⚠️ Stock faible
+        <Typography variant="h6" fontWeight="bold" gutterBottom>
+          📝 Commandes récentes
+        </Typography>
+        
+        {recentOrders.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+            Aucune commande récente
           </Typography>
-        </Box>
-        
-        <Box>
-          {lowStockItems.map((stock, index) => (
-            <Paper
-              key={index}
-              sx={{
-                p: 1.5,
-                mb: 1,
-                bgcolor: stock.critical ? "#FFF3E0" : "transparent",
-                borderLeft: stock.critical ? "4px solid #FF9800" : "none"
-              }}
-            >
-              <Box display="flex" justifyContent="space-between" alignItems="center">
-                <Box>
-                  <Typography fontWeight="medium">{stock.item}</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Restant: {stock.remaining}
-                  </Typography>
+        ) : (
+          <Stack spacing={1} mt={2}>
+            {recentOrders.map((order) => (
+              <Paper key={order.id} sx={{ p: 1.5 }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Box>
+                    <Typography variant="subtitle2" fontWeight="bold">
+                      #{order.id} - {order.clientName || 'Client'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {new Date(order.orderDate || order.createdAt).toLocaleString('fr-FR')}
+                    </Typography>
+                  </Box>
+                  <Chip
+                    label={order.status}
+                    size="small"
+                    sx={{
+                      backgroundColor: 
+                        order.status === 'EN_ATTENTE' ? '#FFF3E0' :
+                        order.status === 'EN_PREPARATION' ? '#E3F2FD' :
+                        order.status === 'PRET' ? '#E8F5E9' : '#F5F5F5',
+                      color: 'text.primary'
+                    }}
+                  />
                 </Box>
-                <Chip
-                  label={stock.critical ? "URGENT" : "Attention"}
-                  color={stock.critical ? "error" : "warning"}
-                  size="small"
-                />
-              </Box>
-            </Paper>
-          ))}
-        </Box>
-        
-        <Button
-          fullWidth
-          variant="contained"
-          color="warning"
-          startIcon={<Inventory />}
-          sx={{ mt: 2 }}
-        >
-          Commander ingrédients
-        </Button>
+              </Paper>
+            ))}
+          </Stack>
+        )}
       </CardContent>
     </Card>
   );
 };
 
 const ChefDashboard = () => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [stats, setStats] = useState({
+    pendingOrders: 0,
+    preparingOrders: 0,
+    readyOrders: 0,
+    completedToday: 0
+  });
+  const [orders, setOrders] = useState([]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Récupérer toutes les commandes pour le chef (vous pouvez ajuster selon vos endpoints)
+      const allOrders = await orderService.getAllOrders();
+      setOrders(allOrders);
+      
+      // Calculer les statistiques
+      const pendingOrders = allOrders.filter(o => o.status === 'EN_ATTENTE').length;
+      const preparingOrders = allOrders.filter(o => o.status === 'EN_PREPARATION').length;
+      const readyOrders = allOrders.filter(o => o.status === 'PRET').length;
+      
+      // Commandes terminées aujourd'hui (LIVRE)
+      const today = new Date().toISOString().split('T')[0];
+      const completedToday = allOrders.filter(o => 
+        o.status === 'LIVRE' && 
+        new Date(o.orderDate || o.createdAt).toISOString().split('T')[0] === today
+      ).length;
+      
+      setStats({
+        pendingOrders,
+        preparingOrders,
+        readyOrders,
+        completedToday
+      });
+      
+      setError(null);
+    } catch (err) {
+      console.error("Erreur chargement dashboard:", err);
+      setError("Impossible de charger les données. Vérifiez votre connexion.");
+      
+      // Données de démo si l'API échoue
+      setOrders([
+        { id: 1001, status: 'EN_ATTENTE', clientName: 'Mohamed', orderDate: new Date().toISOString() },
+        { id: 1002, status: 'EN_PREPARATION', clientName: 'Fatima', orderDate: new Date().toISOString() },
+        { id: 1003, status: 'PRET', clientName: 'Karim', orderDate: new Date().toISOString() },
+        { id: 1004, status: 'EN_ATTENTE', clientName: 'Sarah', orderDate: new Date().toISOString() },
+      ]);
+      
+      setStats({
+        pendingOrders: 2,
+        preparingOrders: 1,
+        readyOrders: 1,
+        completedToday: 0
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+    
+    // Rafraîchir toutes les 30 secondes
+    const interval = setInterval(fetchDashboardData, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <Box>
+    <Box sx={{ p: 3 }}>
       {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={4}>
         <Box>
-          <Typography variant="h4" fontWeight="bold" gutterBottom>
-            👨‍🍳 Tableau de bord cuisine
+          <Typography variant="h4" fontWeight="bold" gutterBottom color="warning.dark">
+            👨‍🍳 Tableau de bord Cuisine
           </Typography>
           <Typography color="text.secondary">
-            Bonjour Ali, préparez-vous pour une journée productive !
+            Gestion des commandes en temps réel
           </Typography>
         </Box>
         
-        <Button variant="outlined" startIcon={<Refresh />}>
-          Actualiser
-        </Button>
+        <Box display="flex" gap={2}>
+          <Chip 
+            label={loading ? "Chargement..." : `${orders.length} commandes`} 
+            color={loading ? "warning" : "info"}
+            icon={loading ? <CircularProgress size={16} /> : null}
+          />
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={fetchDashboardData}
+            disabled={loading}
+          >
+            Actualiser
+          </Button>
+        </Box>
       </Box>
 
-      {/* Stats principales */}
+      {/* Message d'erreur */}
+      {error && (
+        <Alert severity="warning" sx={{ mb: 3, borderRadius: 2 }}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Statistiques principales */}
       <Grid container spacing={3} mb={4}>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Commandes actives"
-            value="8"
-            change={12}
+            title="En attente"
+            value={stats.pendingOrders}
+            icon={<HourglassEmpty />}
+            color="warning"
+            loading={loading}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="En préparation"
+            value={stats.preparingOrders}
             icon={<Restaurant />}
-            color="#FF9800"
+            color="info"
+            loading={loading}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title="Temps moyen"
-            value="18"
-            unit="min"
-            change={-5}
-            icon={<Speed />}
-            color="#4CAF50"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Urgentes"
-            value="3"
-            icon={<LocalFireDepartment />}
-            color="#F44336"
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StatCard
-            title="Préparés"
-            value="25"
-            change={8}
+            title="Prêtes"
+            value={stats.readyOrders}
             icon={<CheckCircle />}
-            color="#2196F3"
+            color="success"
+            loading={loading}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Terminées"
+            value={stats.completedToday}
+            icon={<EmojiEvents />}
+            color="primary"
+            loading={loading}
           />
         </Grid>
       </Grid>
-
-      {/* Alertes */}
-      <Alert 
-        severity="warning" 
-        icon={<LocalFireDepartment />}
-        sx={{ mb: 3 }}
-        action={
-          <Button color="inherit" size="small">
-            Voir détails
-          </Button>
-        }
-      >
-        3 commandes urgentes nécessitent votre attention immédiate !
-      </Alert>
 
       {/* Section principale */}
       <Grid container spacing={3}>
+        {/* Colonne gauche - Graphique et récentes */}
         <Grid item xs={12} lg={8}>
-          <ChefOrdersList />
-        </Grid>
-        
-        <Grid item xs={12} lg={4}>
           <Grid container spacing={3}>
+            {/* Graphique de statut */}
             <Grid item xs={12}>
-              <ChefTimer />
+              <OrdersStatusChart orders={orders} loading={loading} />
             </Grid>
+            
+            {/* Commandes récentes */}
             <Grid item xs={12}>
-              <StockAlert />
+              <RecentOrdersTable orders={orders} loading={loading} />
             </Grid>
           </Grid>
         </Grid>
-      </Grid>
 
-      {/* Section inférieure */}
-      <Grid container spacing={3} mt={3}>
-        <Grid item xs={12} md={6}>
-          <KitchenPerformance />
-        </Grid>
-        
-        <Grid item xs={12} md={6}>
-          <Card sx={{ height: "100%", boxShadow: 2 }}>
-            <CardContent>
-              <Typography variant="h6" fontWeight="bold" gutterBottom>
-                🏆 Classement cuisine
-              </Typography>
-              
-              <Stack spacing={2} mt={2}>
-                {[
-                  { name: "Ali", score: 98, role: "Chef", color: "#FFD700" },
-                  { name: "Karim", score: 92, role: "Sous-chef", color: "#C0C0C0" },
-                  { name: "Sarah", score: 87, role: "Commis", color: "#CD7F32" },
-                ].map((chef, index) => (
-                  <Paper key={index} sx={{ p: 2, display: "flex", alignItems: "center", gap: 2 }}>
-                    <Avatar sx={{ bgcolor: chef.color, width: 40, height: 40 }}>
-                      {chef.name.charAt(0)}
-                    </Avatar>
-                    <Box flex={1}>
-                      <Typography fontWeight="bold">{chef.name}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {chef.role}
-                      </Typography>
-                    </Box>
-                    <Box textAlign="center">
-                      <Typography variant="h5" fontWeight="bold">
-                        {chef.score}
-                      </Typography>
-                      <Typography variant="caption">points</Typography>
-                    </Box>
-                  </Paper>
-                ))}
-              </Stack>
-            </CardContent>
-          </Card>
+        {/* Colonne droite - Commandes urgentes */}
+        <Grid item xs={12} lg={4}>
+          <UrgentOrdersList 
+            orders={orders} 
+            loading={loading}
+            onUpdateStatus={fetchDashboardData}
+          />
         </Grid>
       </Grid>
 
-      {/* Conseils rapides */}
-      <Paper sx={{ p: 3, mt: 4, bgcolor: "#FFF3E0" }}>
-        <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-          💡 Astuces du jour
+      {/* Résumé rapide */}
+      <Paper sx={{ p: 3, mt: 3, bgcolor: '#FFF3E0', borderRadius: 3 }}>
+        <Typography variant="h6" fontWeight="bold" gutterBottom>
+          💡 Actions rapides
         </Typography>
-        <Typography variant="body2" color="text.secondary">
-          1. Préparez les burgers en lot de 4 pour gagner du temps<br/>
-          2. Vérifiez le stock de steak à 17h pour éviter les ruptures<br/>
-          3. Les salades doivent être préparées juste avant service<br/>
-          4. Timer chaque plat pour garantir la ponctualité
-        </Typography>
+        <Grid container spacing={2}>
+          <Grid item xs={6} md={3}>
+            <Button
+              fullWidth
+              variant="contained"
+              color="warning"
+              startIcon={<Restaurant />}
+              onClick={() => window.location.href = '/chef/orders?status=EN_ATTENTE'}
+            >
+              Voir en attente
+            </Button>
+          </Grid>
+          <Grid item xs={6} md={3}>
+            <Button
+              fullWidth
+              variant="contained"
+              color="info"
+              startIcon={<Kitchen />}
+              onClick={() => window.location.href = '/chef/orders?status=EN_PREPARATION'}
+            >
+              Voir en cours
+            </Button>
+          </Grid>
+          <Grid item xs={6} md={3}>
+            <Button
+              fullWidth
+              variant="contained"
+              color="success"
+              startIcon={<CheckCircle />}
+              onClick={() => window.location.href = '/chef/orders?status=PRET'}
+            >
+              Voir prêtes
+            </Button>
+          </Grid>
+          <Grid item xs={6} md={3}>
+            <Button
+              fullWidth
+              variant="outlined"
+              color="primary"
+              startIcon={<Timer />}
+              onClick={() => window.location.href = '/chef/profil'}
+            >
+              Mon profil
+            </Button>
+          </Grid>
+        </Grid>
       </Paper>
     </Box>
   );

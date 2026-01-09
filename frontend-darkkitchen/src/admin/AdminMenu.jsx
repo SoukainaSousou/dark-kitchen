@@ -443,22 +443,6 @@ const AdminMenu = () => {
             </Box>
           </Paper>
         </Grid>
-        
-        <Grid item xs={12} sm={6} md={3}>
-          <Paper sx={{ p: 2 }}>
-            <Box display="flex" alignItems="center" justifyContent="space-between">
-              <Box>
-                <Typography variant="caption" color="text.secondary">
-                  Note moyenne
-                </Typography>
-                <Typography variant="h5" fontWeight="bold">
-                  {averageRating}/5
-                </Typography>
-              </Box>
-              <Star sx={{ color: 'warning.main', fontSize: 40 }} />
-            </Box>
-          </Paper>
-        </Grid>
       </Grid>
 
       {/* Barre de recherche et filtres */}

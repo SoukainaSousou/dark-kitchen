@@ -193,4 +193,173 @@ public class OrderController {
         public String getPassword() { return password; }
         public void setPassword(String password) { this.password = password; }
     }
+
+
+
+    // 1. GET TOUTES LES COMMANDES (Pour l'admin/staff)
+    @GetMapping("/admin/all")
+    public ResponseEntity<?> getAllOrders() {
+        try {
+            List<OrderResponseDTO> orders = orderService.getAllOrders();
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("count", orders.size());
+            response.put("orders", orders);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (RuntimeException e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", e.getMessage());
+            
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(errorResponse);
+        }
+    }
+    
+    // 2. METTRE À JOUR LE STATUT (Pour admin/cuisinier/livreur)
+    @PutMapping("/{orderId}/update-status")
+    public ResponseEntity<?> updateOrderStatus(
+            @PathVariable Long orderId,
+            @RequestBody Map<String, String> request) {
+        
+        try {
+            String newStatus = request.get("status");
+            String updatedBy = request.get("updatedBy"); // "admin", "cuisinier", "livreur"
+            
+            OrderResponseDTO updatedOrder = orderService.updateOrderStatus(orderId, newStatus, updatedBy);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Statut mis à jour avec succès");
+            response.put("order", updatedOrder);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (RuntimeException e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", e.getMessage());
+            
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(errorResponse);
+        }
+    }
+    
+    // 3. GET COMMANDES PAR STATUT (Pour filtres)
+    @GetMapping("/by-status/{status}")
+    public ResponseEntity<?> getOrdersByStatus(@PathVariable String status) {
+        try {
+            List<OrderResponseDTO> orders = orderService.getOrdersByStatus(status);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("status", status);
+            response.put("count", orders.size());
+            response.put("orders", orders);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (RuntimeException e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", e.getMessage());
+            
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(errorResponse);
+        }
+    }
+    
+    // 4. GET STATISTIQUES SIMPLES
+    @GetMapping("/stats/simple")
+    public ResponseEntity<?> getSimpleStats() {
+        try {
+            Map<String, Object> stats = orderService.getSimpleStats();
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("stats", stats);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (RuntimeException e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", e.getMessage());
+            
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(errorResponse);
+        }
+    }
+
+
+        // 5. POUR LE CUISINIER - commandes en préparation
+    @GetMapping("/chef/pending")
+    public ResponseEntity<?> getPendingOrdersForChef() {
+        try {
+            List<OrderResponseDTO> orders = orderService.getOrdersByStatus("EN_PREPARATION");
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("count", orders.size());
+            response.put("orders", orders);
+            
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", e.getMessage());
+            
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        }
+    }
+    
+    // 6. POUR LE LIVREUR - commandes prêtes
+    @GetMapping("/delivery/ready")
+    public ResponseEntity<?> getReadyOrdersForDelivery() {
+        try {
+            List<OrderResponseDTO> orders = orderService.getOrdersByStatus("PRET");
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("count", orders.size());
+            response.put("orders", orders);
+            
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", e.getMessage());
+            
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        }
+    }
+    
+    // 7. NOTIFICATIONS SIMPLES - juste le nombre de commandes en attente
+    @GetMapping("/notifications/count")
+    public ResponseEntity<?> getNotificationCount() {
+        try {
+            List<OrderResponseDTO> pendingOrders = orderService.getOrdersByStatus("EN_ATTENTE");
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("pendingCount", pendingOrders.size());
+            response.put("message", pendingOrders.size() + " commande(s) en attente");
+            
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", e.getMessage());
+            
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        }
+    }
+  
 }

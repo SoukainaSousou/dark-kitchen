@@ -22,4 +22,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     
     // Compter les commandes par client
     Long countByClientId(Long clientId);
+
+      List<Order> findAllByOrderByOrderDateDesc();
+    
+    // Commandes par statut
+    List<Order> findByStatusOrderByOrderDateDesc(String status);
+    
+    // Méthode pour trouver par statuts multiples
+    List<Order> findByStatusInOrderByOrderDateDesc(List<String> statuses);
 }

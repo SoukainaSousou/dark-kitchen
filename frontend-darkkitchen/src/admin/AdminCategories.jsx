@@ -64,18 +64,46 @@ const AdminCategories = () => {
   }, []);
 
   const fetchCategories = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`${API_URL}/categories`);
-      setCategories(response.data);
-      setError(null);
-    } catch (err) {
-      console.error("Erreur lors de la récupération des catégories:", err);
-      setError("Impossible de charger les catégories. Veuillez réessayer.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    setLoading(true);
+    // Récupérer les catégories
+    const categoriesResponse = await axios.get(`${API_URL}/categories`);
+    const categories = categoriesResponse.data;
+    
+    // Pour chaque catégorie, récupérer le nombre de plats
+    const categoriesWithDishCount = await Promise.all(
+      categories.map(async (category) => {
+        try {
+          // Récupérer les plats de cette catégorie
+          const dishesResponse = await axios.get(`${API_URL}/dishes/category/${category.id}`);
+          return {
+            ...category,
+            dishCount: dishesResponse.data.length
+          };
+        } catch (dishErr) {
+          console.error(`Erreur pour la catégorie ${category.id}:`, dishErr);
+          return {
+            ...category,
+            dishCount: 0
+          };
+        }
+      })
+    );
+    
+    setCategories(categoriesWithDishCount);
+    setError(null);
+  } catch (err) {
+    console.error("Erreur lors de la récupération des catégories:", err);
+    setError("Impossible de charger les catégories. Veuillez réessayer.");
+  } finally {
+    setLoading(false);
+  }
+};
+
+// Modifiez getDishCount
+const getDishCount = (category) => {
+  return category.dishCount || 0;
+};
 
   // Ajouter une catégorie
   const handleAdd = async () => {
@@ -153,10 +181,10 @@ const AdminCategories = () => {
     }
   };
 
-  // Calculer le nombre de plats par catégorie
+  /* Calculer le nombre de plats par catégorie
   const getDishCount = (category) => {
     return category.dishes ? category.dishes.length : 0;
-  };
+  };*/
 
   // Fonction utilitaire pour couleur aléatoire (pour les avatars)
   const getRandomColor = () => {

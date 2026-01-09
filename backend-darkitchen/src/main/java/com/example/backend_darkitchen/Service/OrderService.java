@@ -90,13 +90,12 @@ public class OrderService {
             clientInfo.getPassword() : 
             generateTemporaryPassword();
         
-        newClient.setPassword(password); // Pas d'encodage pour simplifier
+        newClient.setPassword(password);
         newClient.setRegistrationDate(LocalDateTime.now());
         newClient.setActive(true);
         
         return clientRepository.save(newClient);
     }
-    
     
     public boolean checkClientExists(String email) {
         return clientRepository.findByEmail(email).isPresent();
@@ -110,7 +109,7 @@ public class OrderService {
         return null;
     }
     
-    // NOUVELLE MÉTHODE : Récupérer les commandes d'un client avec DTO
+    // Récupérer les commandes d'un client
     public List<OrderResponseDTO> getClientOrders(Long clientId, String status, String startDate, String endDate, String sortBy) {
         try {
             // Vérifier si le client existe
@@ -134,10 +133,10 @@ public class OrderService {
                     .collect(Collectors.toList());
             }
             
-            // Convertir les entités en DTO
+            // Convertir en DTO
             List<OrderResponseDTO> orderDTOs = new ArrayList<>();
             for (Order order : orders) {
-                OrderResponseDTO dto = convertToOrderResponseDTO(order);
+                OrderResponseDTO dto = convertToResponseDTO(order);
                 orderDTOs.add(dto);
             }
             
@@ -158,46 +157,13 @@ public class OrderService {
         }
     }
     
-    // NOUVELLE MÉTHODE : Convertir Order en OrderResponseDTO
-    private OrderResponseDTO convertToOrderResponseDTO(Order order) {
-        OrderResponseDTO dto = new OrderResponseDTO();
-        
-        dto.setOrderId(order.getId());
-        dto.setClientId(order.getClient() != null ? order.getClient().getId() : null);
-        dto.setStatus(order.getStatus());
-        dto.setTotalAmount(order.getTotalAmount());
-        dto.setOrderDate(order.getOrderDate());
-        dto.setDeliveryAddress(order.getDeliveryAddress());
-        dto.setPhoneNumber(order.getPhoneNumber());
-        dto.setNotes(order.getNotes());
-        dto.setClientEmail(order.getClientEmail());
-        dto.setClientFullName(order.getClientFullName());
-        
-        // Convertir les items
-        if (order.getItems() != null && !order.getItems().isEmpty()) {
-            List<OrderItemResponseDTO> itemDTOs = new ArrayList<>();
-            for (OrderItem item : order.getItems()) {
-                OrderItemResponseDTO itemDTO = new OrderItemResponseDTO();
-                itemDTO.setDishId(item.getDish() != null ? item.getDish().getId() : null);
-                itemDTO.setDishName(item.getDishName());
-                itemDTO.setQuantity(item.getQuantity());
-                itemDTO.setPrice(item.getPrice());
-                itemDTO.setSubtotal(item.getPrice() * item.getQuantity());
-                itemDTOs.add(itemDTO);
-            }
-            dto.setItems(itemDTOs);
-        }
-        
-        return dto;
-    }
-    
-    // NOUVELLE MÉTHODE : Récupérer une commande par ID avec DTO
+    // Récupérer une commande par ID
     public OrderResponseDTO getOrderById(Long orderId) {
         try {
             Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Commande non trouvée avec l'ID: " + orderId));
             
-            return convertToOrderResponseDTO(order);
+            return convertToResponseDTO(order);
             
         } catch (Exception e) {
             e.printStackTrace();
@@ -205,7 +171,7 @@ public class OrderService {
         }
     }
     
-    // NOUVELLE MÉTHODE : Annuler une commande avec DTO
+    // Annuler une commande
     @Transactional
     public OrderResponseDTO cancelOrder(Long orderId, String reason) {
         try {
@@ -228,7 +194,7 @@ public class OrderService {
             }
             
             Order cancelledOrder = orderRepository.save(order);
-            return convertToOrderResponseDTO(cancelledOrder);
+            return convertToResponseDTO(cancelledOrder);
             
         } catch (Exception e) {
             e.printStackTrace();
@@ -236,7 +202,7 @@ public class OrderService {
         }
     }
     
-    // NOUVELLE MÉTHODE : Commander à nouveau avec DTO
+    // Commander à nouveau
     @Transactional
     public OrderResponseDTO reorder(Long orderId) {
         try {
@@ -259,7 +225,7 @@ public class OrderService {
                 OrderItem newItem = new OrderItem();
                 newItem.setDish(dish);
                 newItem.setQuantity(originalItem.getQuantity());
-                newItem.setPrice(dish.getPrice()); // Utiliser le prix actuel du plat
+                newItem.setPrice(dish.getPrice());
                 newItem.setDishName(dish.getName());
                 newOrder.addItem(newItem);
             }
@@ -269,7 +235,7 @@ public class OrderService {
             
             // Sauvegarder la nouvelle commande
             Order savedOrder = orderRepository.save(newOrder);
-            return convertToOrderResponseDTO(savedOrder);
+            return convertToResponseDTO(savedOrder);
             
         } catch (Exception e) {
             e.printStackTrace();
@@ -277,7 +243,70 @@ public class OrderService {
         }
     }
     
-    // Méthode utilitaire pour convertir les statuts
+    // === NOUVELLES MÉTHODES POUR L'ADMIN/CUISINIER/LIVREUR ===
+    
+    // 1. Obtenir toutes les commandes (pour admin)
+    public List<OrderResponseDTO> getAllOrders() {
+        List<Order> orders = orderRepository.findAllByOrderByOrderDateDesc();
+        return orders.stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+    }
+    
+    // 2. Mettre à jour le statut (pour admin/cuisinier/livreur)
+    @Transactional
+    public OrderResponseDTO updateOrderStatus(Long orderId, String newStatus, String updatedBy) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Commande non trouvée"));
+        
+        // Validation simple
+        if (order.getStatus().equals("LIVREE") || order.getStatus().equals("ANNULEE")) {
+            throw new RuntimeException("Impossible de modifier une commande terminée");
+        }
+        
+        // Mettre à jour le statut
+        order.setStatus(newStatus);
+        order.setOrderDate(LocalDateTime.now());
+        
+        Order savedOrder = orderRepository.save(order);
+        return convertToResponseDTO(savedOrder);
+    }
+    
+    // 3. Obtenir les commandes par statut (pour filtres)
+    public List<OrderResponseDTO> getOrdersByStatus(String status) {
+        List<Order> orders = orderRepository.findByStatusOrderByOrderDateDesc(status);
+        return orders.stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+    }
+    
+    // 4. Statistiques simples (pour dashboard)
+    public Map<String, Object> getSimpleStats() {
+        Map<String, Object> stats = new HashMap<>();
+        
+        List<Order> allOrders = orderRepository.findAll();
+        
+        // Comptes par statut (simplifié)
+        stats.put("totalOrders", allOrders.size());
+        stats.put("enAttente", countByStatus(allOrders, "EN_ATTENTE"));
+        stats.put("enPreparation", countByStatus(allOrders, "EN_PREPARATION"));
+        stats.put("pret", countByStatus(allOrders, "PRET"));
+        stats.put("enLivraison", countByStatus(allOrders, "EN_LIVRAISON"));
+        stats.put("livree", countByStatus(allOrders, "LIVREE"));
+        stats.put("annulee", countByStatus(allOrders, "ANNULEE"));
+        
+        // Revenu total (commandes livrées)
+        Double totalRevenue = allOrders.stream()
+                .filter(o -> "LIVREE".equals(o.getStatus()))
+                .mapToDouble(o -> o.getTotalAmount() != null ? o.getTotalAmount() : 0)
+                .sum();
+        stats.put("totalRevenue", totalRevenue);
+        
+        return stats;
+    }
+    
+    // === MÉTHODES UTILITAIRES ===
+    
     private String convertStatus(String status) {
         switch (status.toUpperCase()) {
             case "PENDING": return "EN_ATTENTE";
@@ -293,5 +322,61 @@ public class OrderService {
     
     private String generateTemporaryPassword() {
         return UUID.randomUUID().toString().substring(0, 8);
+    }
+    
+    // Méthode utilitaire pour compter
+    private long countByStatus(List<Order> orders, String status) {
+        return orders.stream()
+                .filter(o -> status.equals(o.getStatus()))
+                .count();
+    }
+    
+    // Méthode principale de conversion (UNE SEULE)
+    private OrderResponseDTO convertToResponseDTO(Order order) {
+        OrderResponseDTO dto = new OrderResponseDTO();
+        
+        dto.setOrderId(order.getId());
+        dto.setStatus(order.getStatus());
+        dto.setTotalAmount(order.getTotalAmount());
+        dto.setOrderDate(order.getOrderDate());
+        dto.setDeliveryAddress(order.getDeliveryAddress());
+        dto.setPhoneNumber(order.getPhoneNumber());
+        dto.setNotes(order.getNotes());
+        dto.setClientEmail(order.getClientEmail());
+        dto.setClientFullName(order.getClientFullName());
+        
+        if (order.getClient() != null) {
+            dto.setClientId(order.getClient().getId());
+        }
+        
+        // Convertir les items
+        if (order.getItems() != null && !order.getItems().isEmpty()) {
+            List<OrderItemResponseDTO> itemDTOs = order.getItems().stream()
+                    .map(this::convertItemToResponseDTO)
+                    .collect(Collectors.toList());
+            dto.setItems(itemDTOs);
+        }
+        
+        return dto;
+    }
+    
+    // Méthode pour convertir OrderItem
+    private OrderItemResponseDTO convertItemToResponseDTO(OrderItem item) {
+        OrderItemResponseDTO dto = new OrderItemResponseDTO();
+        
+        if (item.getDish() != null) {
+            dto.setDishId(item.getDish().getId());
+            dto.setDishName(item.getDish().getName());
+        }
+        
+        dto.setQuantity(item.getQuantity());
+        dto.setPrice(item.getPrice());
+        
+        // Calculer le sous-total
+        if (item.getPrice() != null && item.getQuantity() != null) {
+            dto.setSubtotal(item.getPrice() * item.getQuantity());
+        }
+        
+        return dto;
     }
 }

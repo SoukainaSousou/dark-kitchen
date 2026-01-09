@@ -15,14 +15,26 @@ import AdminOrders from "./admin/AdminOrders";
 import AdminMenu from "./admin/AdminMenu";
 import AdminCategories from "./admin/AdminCategories";
 import AdminUsers from "./admin/AdminUsers";
+import AdminClients from "./admin/AdminClients";
+import AdminProfil from "./admin/AdminProfil";
+
 import AdminKitchen from "./admin/AdminKitchen";
 import AdminDelivery from "./admin/AdminDelivery";
 
 import ChefLayout from "./cuisinier/ChefLayout";
 import ChefDashboard from "./cuisinier/ChefDashboard";
+import ChefReadyOrders from './cuisinier/ChefReadyOrders';
+
+import ChefProfil from './cuisinier/ChefProfil';
+
 import DriverLayout from "./livreur/DriverLayout";
 import DriverDashboard from "./livreur/DriverDashboard";
 
+import ChefOrders from './cuisinier/ChefOrders';
+import DeliveryOrders from './livreur/DeliveryOrders';
+import DriverCompleted from './livreur/DriverCompleted';
+
+import DriverProfil from './livreur/DriverProfil';
 import Profile from './pages/Profile';
 import Orders from './pages/Orders';
 import MyOrders from './pages/MyOrders';
@@ -104,28 +116,43 @@ function App() {
             <Route path="menu" element={<AdminMenu />} />
             <Route path="categories" element={<AdminCategories />} />
             <Route path="users" element={<AdminUsers />} />
+            <Route path="clients" element={<AdminClients />} />
+            <Route path="profil" element={<AdminProfil />} />
+            
             <Route path="kitchen" element={<AdminKitchen />} />
             <Route path="delivery" element={<AdminDelivery />} />
           </Route>
 
-          {/* Routes cuisinier */}
-          <Route path="/chef" element={
-            <ProtectedRoute allowedRoles={['CHEF', 'ADMIN']}>
-              <ChefLayout />
-            </ProtectedRoute>
-          }>
+            {/* Routes cuisinier */}
+          <Route 
+            path="/chef" 
+            element={
+              <ProtectedRoute allowedRoles={['CHEF', 'ADMIN']}>
+                <ChefLayout />
+              </ProtectedRoute>
+            }
+          >
             <Route index element={<ChefDashboard />} />
+            <Route path="orders" element={<ChefOrders />} />
+            <Route path="ready" element={<ChefReadyOrders/>} />
+            <Route path="profil" element={<ChefProfil/>} />
           </Route>
 
           {/* Routes livreur */}
-          <Route path="/driver" element={
-            <ProtectedRoute allowedRoles={['DRIVER', 'ADMIN']}>
-              <DriverLayout />
-            </ProtectedRoute>
-          }>
+          <Route 
+            path="/driver" 
+            element={
+              <ProtectedRoute allowedRoles={['DRIVER', 'ADMIN']}>
+                <DriverLayout />
+              </ProtectedRoute>
+            }
+          >
             <Route index element={<DriverDashboard />} />
+            <Route path="orders" element={<DeliveryOrders />} />
+            <Route path="completed" element={<DriverCompleted />} />
+            <Route path="profil" element={<DriverProfil />} />
           </Route>
-
+          
           {/* Redirection par défaut */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
