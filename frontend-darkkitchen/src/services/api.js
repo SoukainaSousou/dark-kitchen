@@ -762,6 +762,30 @@ sendNotification: async (orderId, notificationType, message) => {
     throw error;
   }
 }
+,
+// Ajoutez cette méthode dans orderService
+getOrdersInDelivery: async () => {
+  try {
+    const user = authService.getCurrentUser();
+    if (!user || !['DRIVER', 'driver', 'ADMIN', 'admin'].includes(user.role)) {
+      throw new Error('Accès non autorisé');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/orders/by-status/EN_LIVRAISON`, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Erreur lors de la récupération des commandes en livraison');
+    }
+    
+    const data = await response.json();
+    return data.orders || [];
+  } catch (error) {
+    console.error('Erreur:', error);
+    throw error;
+  }
+}
 };
 
 

@@ -118,19 +118,13 @@ const DriverSidebar = () => {
     },
     { 
       label: "En Livraison", 
-      path: "/driver/active", 
+      path: "/driver/traking", 
       icon: <LocalShippingIcon />,
       description: "En cours de livraison"
     },
     { 
-      label: "Livrées", 
-      path: "/driver/completed", 
-      icon: <CheckCircleIcon />,
-      description: "Historique"
-    },
-    { 
       label: "Mon Profil", 
-      path: "/driver/profile", 
+      path: "/driver/profil", 
       icon: <PersonIcon />
     },
   ];

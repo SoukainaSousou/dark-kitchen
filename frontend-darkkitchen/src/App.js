@@ -40,6 +40,7 @@ import Orders from './pages/Orders';
 import MyOrders from './pages/MyOrders';
 import OrderDetails from './pages/OrderDetails';
 import { authService } from './services/api';
+import DeliveryTracking from './livreur/DeliveryTracking';
 
 // Composant de protection des routes
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -150,7 +151,8 @@ function App() {
             <Route index element={<DriverDashboard />} />
             <Route path="orders" element={<DeliveryOrders />} />
             <Route path="completed" element={<DriverCompleted />} />
-            <Route path="profil" element={<DriverProfil />} />
+            <Route path="traking" element={<DeliveryTracking/>} />
+            <Route path="profil" element={<DriverProfil/>} />
           </Route>
           
           {/* Redirection par défaut */}
