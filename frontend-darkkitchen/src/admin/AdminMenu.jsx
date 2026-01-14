@@ -30,8 +30,7 @@ import {
   Alert,
   Avatar,
   Tooltip,
-  CircularProgress,
-  Snackbar
+  CircularProgress
 } from "@mui/material";
 import {
   Add,
@@ -69,7 +68,7 @@ const AdminMenu = () => {
     isPopular: false,
     isNew: false
   });
-  
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Tous");
   const [page, setPage] = useState(0);
@@ -78,196 +77,137 @@ const AdminMenu = () => {
   const [imagePreview, setImagePreview] = useState("");
   const [fileName, setFileName] = useState("");
 
-  // Configuration axios
   const axiosInstance = axios.create({
     baseURL: "http://localhost:8080",
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' }
   });
 
-  // Récupérer les plats et catégories depuis l'API
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      
-      // Récupérer les plats
       const dishesResponse = await axiosInstance.get("/api/dishes");
-      
-      // Récupérer les catégories
       const categoriesResponse = await axiosInstance.get("/api/categories");
       setCategories(categoriesResponse.data);
-      
-      // Transformer les données des plats (UNIQUEMENT les champs qui existent dans la base)
-      const transformedDishes = dishesResponse.data.map(dish => {
-        return {
-          id: dish.id,
-          name: dish.name,
-          price: dish.price || 0,
-          description: dish.description || "",
-          category: dish.category ? dish.category.name : "Non catégorisé",
-          categoryId: dish.category ? dish.category.id : null,
-          preparationTime: dish.prepTime ? `${dish.prepTime} min` : "15-20 min",
-          rating: dish.rating || 4.0,
-          image: dish.image || `/images/dishes/${dish.name.toLowerCase().replace(/\s+/g, '-')}.png`,
-          isPopular: dish.isPopular || false,
-          isNew: dish.isNew || false
-          // SUPPRIMÉ: isAvailable, sales, cost, profit, ingredients, lastOrder
-        };
-      });
-      
+
+      const transformedDishes = dishesResponse.data.map(dish => ({
+        id: dish.id,
+        name: dish.name,
+        price: dish.price || 0,
+        description: dish.description || "",
+        category: dish.category ? dish.category.name : "Non catégorisé",
+        categoryId: dish.category ? dish.category.id : null,
+        preparationTime: dish.prepTime ? `${dish.prepTime} min` : "15-20 min",
+        rating: dish.rating || 4.0,
+        image: dish.image || `/images/dishes/${dish.name}.png`,
+        isPopular: dish.isPopular || false,
+        isNew: dish.isNew || false
+      }));
+
       setDishes(transformedDishes);
       setError(null);
     } catch (err) {
       console.error("Erreur détaillée:", err);
       setError(`Impossible de charger les données: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  // Gestion de l'image - Conserver le nom original
+  // === GESTION IMAGE CÔTÉ FRONT ===
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       setImageFile(file);
-      setFileName(file.name); // Conserver le nom du fichier
-      
-      // Créer un aperçu local
+      setFileName(file.name);
+
+      // Aperçu local
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
+      reader.onloadend = () => setImagePreview(reader.result);
       reader.readAsDataURL(file);
-      
-      // Générer un nom d'image basé sur le nom du plat ou le nom du fichier
-      const imageName = currentDish.name 
-        ? `${currentDish.name.toLowerCase().replace(/\s+/g, '-')}.${file.name.split('.').pop()}`
-        : file.name;
-      
+
+      // Conserver le nom original pour currentDish.image
       setCurrentDish(prev => ({
         ...prev,
-        image: `/images/dishes/${imageName}`
+        image: `/images/dishes/${file.name}`
       }));
     }
   };
 
-  // Générer l'URL de l'image avec le nom original
   const getImageUrl = () => {
-    if (imageFile) {
-      // Utiliser le nom original du fichier ou générer un nom basé sur le plat
-      const originalName = imageFile.name;
-      const extension = originalName.split('.').pop();
-      
-      // Si un nom de plat est fourni, l'utiliser pour nommer l'image
-      if (currentDish.name && currentDish.name.trim() !== "") {
-        const dishName = currentDish.name
-          .toLowerCase()
-          .replace(/[^a-z0-9]/g, '-')
-          .replace(/-+/g, '-');
-        return `/images/dishes/${dishName}.${extension}`;
-      }
-      
-      // Sinon utiliser le nom original du fichier
-      return `/images/dishes/${originalName}`;
-    }
-    
-    // Si pas de fichier mais un nom de plat existe, générer une URL
-    if (currentDish.name && currentDish.name.trim() !== "") {
-      const dishName = currentDish.name
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '-')
-        .replace(/-+/g, '-');
-      return `/images/dishes/${dishName}.png`;
-    }
-    
-    // Fallback par défaut
-    return currentDish.image || "";
+    if (imagePreview) return imagePreview; // Aperçu local si upload récent
+    return currentDish.image || ""; // Sinon l'image existante
   };
 
-  // Ajouter un plat
+  // === AJOUTER UN PLAT ===
   const handleAdd = async () => {
-    try {
-      // Générer l'URL de l'image avec le nom original
-      const imageUrl = getImageUrl();
-      
-      const dishData = {
-        name: currentDish.name,
-        description: currentDish.description,
-        price: parseFloat(currentDish.price),
-        image: imageUrl,
-        prepTime: currentDish.prepTime || "15-20",
-        rating: currentDish.rating || 4.0,
-        isPopular: currentDish.isPopular || false,
-        isNew: currentDish.isNew || false,
-        category: { id: parseInt(currentDish.categoryId) }
-      };
+  try {
+    const formData = new FormData();
 
-      console.log("Création du plat avec données:", dishData);
-      
-      const response = await axiosInstance.post("/api/dishes", dishData);
-      console.log("Plat créé avec succès:", response.data);
-      
-      // Rafraîchir les données
-      await fetchData();
-      
-      resetForm();
-      setOpenDialog(false);
-      setSuccessMessage(`Plat "${currentDish.name}" créé avec succès !`);
-    } catch (err) {
-      console.error("Erreur complète:", err);
-      setError(`Erreur lors de la création: ${err.response?.data?.message || err.message}`);
+    formData.append("name", currentDish.name);
+    formData.append("description", currentDish.description);
+    formData.append("price", parseFloat(currentDish.price));
+    formData.append("prepTime", currentDish.prepTime);
+    formData.append("rating", currentDish.rating);
+    formData.append("isPopular", currentDish.isPopular);
+    formData.append("isNew", currentDish.isNew);
+    formData.append("categoryId", currentDish.categoryId);
+
+    if (imageFile) {
+      formData.append("image", imageFile);
     }
-  };
 
-  // Modifier un plat
+    const response = await axios.post(`${API_URL}/dishes`, formData);
+
+
+    await fetchData();
+    resetForm();
+    setOpenDialog(false);
+    setSuccessMessage(`Plat "${currentDish.name}" créé avec succès !`);
+  } catch (err) {
+    console.error("Erreur lors de la création:", err);
+    setError(`Erreur lors de la création: ${err.response?.data?.message || err.message}`);
+  }
+};
+
+
+  // === MODIFIER UN PLAT ===
   const handleUpdate = async () => {
-    try {
-      const imageUrl = getImageUrl();
-      
-      const dishData = {
-        name: currentDish.name,
-        description: currentDish.description,
-        price: parseFloat(currentDish.price),
-        image: imageUrl,
-        prepTime: currentDish.prepTime,
-        rating: currentDish.rating,
-        isPopular: currentDish.isPopular,
-        isNew: currentDish.isNew,
-        category: { id: parseInt(currentDish.categoryId) }
-      };
+  try {
+    const formData = new FormData();
 
-      console.log("Mise à jour du plat", currentDish.id, "avec données:", dishData);
-      
-      const response = await axiosInstance.put(`/api/dishes/${currentDish.id}`, dishData);
-      console.log("Réponse mise à jour:", response.data);
-      
-      // Rafraîchir les données
-      await fetchData();
-      
-      resetForm();
-      setOpenDialog(false);
-      setSuccessMessage(`Plat "${currentDish.name}" mis à jour avec succès !`);
-    } catch (err) {
-      console.error("Erreur lors de la mise à jour:", err);
-      setError(`Erreur lors de la mise à jour: ${err.response?.data?.message || err.message}`);
+    formData.append("name", currentDish.name);
+    formData.append("description", currentDish.description);
+    formData.append("price", parseFloat(currentDish.price));
+    formData.append("prepTime", currentDish.prepTime);
+    formData.append("rating", currentDish.rating);
+    formData.append("isPopular", currentDish.isPopular);
+    formData.append("isNew", currentDish.isNew);
+    formData.append("categoryId", currentDish.categoryId);
+
+    if (imageFile) {
+      formData.append("image", imageFile);
     }
-  };
 
-  // Supprimer un plat
+    await axios.put(`${API_URL}/dishes/${currentDish.id}`, formData);
+
+
+    await fetchData();
+    resetForm();
+    setOpenDialog(false);
+    setSuccessMessage(`Plat "${currentDish.name}" mis à jour avec succès !`);
+  } catch (err) {
+    console.error("Erreur lors de la mise à jour:", err);
+    setError(`Erreur lors de la mise à jour: ${err.response?.data?.message || err.message}`);
+  }
+};
+
+  // === SUPPRIMER UN PLAT ===
   const handleDelete = async (id) => {
     const dishToDelete = dishes.find(d => d.id === id);
     if (window.confirm(`Êtes-vous sûr de vouloir supprimer le plat "${dishToDelete?.name}" ?`)) {
       try {
         await axiosInstance.delete(`/api/dishes/${id}`);
-        
-        // Rafraîchir les données
         await fetchData();
-        
         setSuccessMessage(`Plat "${dishToDelete?.name}" supprimé avec succès !`);
       } catch (err) {
         console.error("Erreur lors de la suppression:", err);
@@ -276,7 +216,6 @@ const AdminMenu = () => {
     }
   };
 
-  // Réinitialiser le formulaire
   const resetForm = () => {
     setCurrentDish({
       name: "",
@@ -294,7 +233,6 @@ const AdminMenu = () => {
     setFileName("");
   };
 
-  // Ouvrir le dialogue d'édition
   const openEditDialog = (dish) => {
     setCurrentDish({
       id: dish.id,
@@ -314,31 +252,18 @@ const AdminMenu = () => {
     setOpenDialog(true);
   };
 
-  // Ouvrir le dialogue d'ajout
-  const openAddDialog = () => {
-    resetForm();
-    setEditMode(false);
-    setOpenDialog(true);
-  };
+  const openAddDialog = () => { resetForm(); setEditMode(false); setOpenDialog(true); };
 
-  // Filtrer les plats
   const filteredDishes = dishes.filter(dish => {
     const matchesSearch = dish.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         dish.description.toLowerCase().includes(searchTerm.toLowerCase());
+                          dish.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === "Tous" || dish.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
-  };
+  const handleChangePage = (event, newPage) => setPage(newPage);
+  const handleChangeRowsPerPage = (event) => { setRowsPerPage(parseInt(event.target.value, 10)); setPage(0); };
 
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
-
-  // Calcul des statistiques SIMPLIFIÉES (uniquement ce qui existe dans la base)
   const totalDishes = dishes.length;
   const popularDishes = dishes.filter(d => d.isPopular).length;
   const newDishes = dishes.filter(d => d.isNew).length;
@@ -346,52 +271,28 @@ const AdminMenu = () => {
     ? (dishes.reduce((sum, dish) => sum + dish.rating, 0) / dishes.length).toFixed(1)
     : 0;
 
-  // Catégories uniques pour le filtre
   const uniqueCategories = ["Tous", ...new Set(dishes.map(d => d.category).filter(Boolean))];
 
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress />
-        <Typography ml={2}>Chargement du menu...</Typography>
-      </Box>
-    );
-  }
+  if (loading) return (
+    <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <CircularProgress />
+      <Typography ml={2}>Chargement du menu...</Typography>
+    </Box>
+  );
 
   return (
     <Box>
       {/* Notifications */}
-      {successMessage && (
-        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMessage("")}>
-          {successMessage}
-        </Alert>
-      )}
-      
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+      {successMessage && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMessage("")}>{successMessage}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
 
-      {/* Header avec stats */}
+      {/* Header et stats */}
       <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={4}>
         <Box>
-          <Typography variant="h4" fontWeight="bold" gutterBottom>
-            📋 Gestion du menu
-          </Typography>
-          <Typography color="text.secondary">
-            {dishes.length} plats disponibles dans votre menu
-          </Typography>
+          <Typography variant="h4" fontWeight="bold" gutterBottom>📋 Gestion du menu</Typography>
+          <Typography color="text.secondary">{dishes.length} plats disponibles</Typography>
         </Box>
-        
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={openAddDialog}
-          size="large"
-        >
-          Nouveau plat
-        </Button>
+        <Button variant="contained" startIcon={<Add />} onClick={openAddDialog} size="large">Nouveau plat</Button>
       </Box>
 
       {/* Statistiques rapides SIMPLIFIÉES */}
